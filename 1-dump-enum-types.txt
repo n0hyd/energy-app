@@ -1,0 +1,52 @@
+[
+  {
+    "enum_type": "member_role",
+    "enum_value": "owner",
+    "enumsortorder": 1
+  },
+  {
+    "enum_type": "member_role",
+    "enum_value": "admin",
+    "enumsortorder": 2
+  },
+  {
+    "enum_type": "member_role",
+    "enum_value": "member",
+    "enumsortorder": 3
+  },
+  {
+    "enum_type": "meter_type",
+    "enum_value": "electric",
+    "enumsortorder": 1
+  },
+  {
+    "enum_type": "meter_type",
+    "enum_value": "gas",
+    "enumsortorder": 2
+  },
+  {
+    "enum_type": "upload_status",
+    "enum_value": "pending",
+    "enumsortorder": 1
+  },
+  {
+    "enum_type": "upload_status",
+    "enum_value": "entered",
+    "enumsortorder": 2
+  },
+  {
+    "enum_type": "upload_status",
+    "enum_value": "error",
+    "enumsortorder": 3
+  },
+  {
+    "enum_type": "utility_type",
+    "enum_value": "electric",
+    "enumsortorder": 1
+  },
+  {
+    "enum_type": "utility_type",
+    "enum_value": "gas",
+    "enumsortorder": 2
+  }
+]

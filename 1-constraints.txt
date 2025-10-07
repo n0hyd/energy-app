@@ -1,0 +1,347 @@
+[
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "2200_17393_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "2200_17393_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "2200_17393_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "2200_17393_4_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "2200_17393_5_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "bill_uploads_meter_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "bill_uploads",
+    "constraint_name": "bill_uploads_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_4_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_6_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_8_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "2200_17408_9_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_demand_cost_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_demand_le_total",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_period_valid",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_total_cost_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_bill_upload_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_building_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_meter_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "bills",
+    "constraint_name": "bills_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_6_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_7_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "2200_17353_9_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_hours_of_operation_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_number_of_staff_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_number_of_students_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_postal_code_format",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_square_feet_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_state_code_len",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_year_built_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_org_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "buildings",
+    "constraint_name": "buildings_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "2200_17325_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "2200_17325_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "2200_17325_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "2200_17325_4_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "memberships_org_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "memberships_profile_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "memberships",
+    "constraint_name": "memberships_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "2200_17371_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "2200_17371_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "2200_17371_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "2200_17371_5_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "2200_17371_6_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "meters_meter_number_nonempty",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "meters_building_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "meters",
+    "constraint_name": "meters_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "organizations",
+    "constraint_name": "2200_17308_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "organizations",
+    "constraint_name": "2200_17308_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "organizations",
+    "constraint_name": "2200_17308_3_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "organizations",
+    "constraint_name": "organizations_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "2200_17293_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "2200_17293_4_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "profiles",
+    "constraint_name": "profiles_email_key",
+    "constraint_type": "UNIQUE"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "2200_17422_1_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "2200_17422_2_not_null",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_mcf_nonneg",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_one_of_kwh_mcf_therms_mmbtu",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_readings_usage_kwh_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_readings_usage_mmbtu_check",
+    "constraint_type": "CHECK"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_readings_bill_id_fkey",
+    "constraint_type": "FOREIGN KEY"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_readings_pkey",
+    "constraint_type": "PRIMARY KEY"
+  },
+  {
+    "table_name": "usage_readings",
+    "constraint_name": "usage_readings_bill_id_key",
+    "constraint_type": "UNIQUE"
+  }
+]

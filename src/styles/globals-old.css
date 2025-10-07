@@ -1,0 +1,50 @@
+// === src/styles/globals.css ===
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Brand tokens */
+:root {
+--card-bg: 255 255 255; /* white */
+--muted: 107 114 128; /* gray-500 */
+}
+
+
+html, body, #__next { height: 100%; }
+body { @apply bg-gray-50 text-gray-900 antialiased; }
+
+
+/* Card */
+.card { @apply bg-white shadow-soft rounded-2xl border border-gray-100; }
+.card-header { @apply px-5 pt-5 pb-2 flex items-center justify-between; }
+.card-title { @apply text-sm font-semibold text-gray-600; }
+.card-value { @apply text-2xl font-bold tracking-tight; }
+.card-sub { @apply text-xs text-gray-500; }
+
+
+/* Table */
+.table { @apply w-full text-sm; }
+.table thead th { @apply text-left text-gray-500 font-medium py-2; }
+.table tbody td { @apply py-2 border-t border-gray-100; }
+
+
+/* Badge */
+.badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+.badge-green { @apply bg-green-50 text-green-700 ring-1 ring-green-200; }
+.badge-red { @apply bg-rose-50 text-rose-700 ring-1 ring-rose-200; }
+.badge-amber { @apply bg-amber-50 text-amber-800 ring-1 ring-amber-200; }
+
+
+/* Toggle group */
+.toggle { @apply inline-flex rounded-xl p-1 bg-gray-100; }
+.toggle button { @apply px-3 py-1.5 text-xs font-medium rounded-lg; }
+.toggle .active { @apply bg-white shadow border border-gray-200; }
+
+
+/* Skeletons */
+.skeleton { @apply animate-pulse bg-gray-200 rounded; }
+
+
+/* Utilities */
+.section { @apply grid gap-4 md:gap-6; }

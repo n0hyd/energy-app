@@ -1,0 +1,40 @@
+/* src/styles/globals.css */
+@import "tailwindcss";
+
+/* plugins (v4) */
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/typography";
+
+/* your component classes from before */
+@layer components {
+  .card { @apply bg-white rounded-2xl border border-gray-100; }
+  .card-header { @apply px-5 pt-5 pb-2 flex items-center justify-between; }
+  .card-title { @apply text-sm font-semibold text-gray-600; }
+  .card-value { @apply text-2xl font-bold tracking-tight; }
+  .card-sub { @apply text-xs text-gray-500; }
+
+  .table { @apply w-full text-sm; }
+  .table thead th { @apply text-left text-gray-500 font-medium py-2; }
+  .table tbody td { @apply py-2 border-t border-gray-100; }
+
+  .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+  .badge-green { @apply bg-green-50 text-green-700 ring-1 ring-green-200; }
+  .badge-red { @apply bg-rose-50 text-rose-700 ring-1 ring-rose-200; }
+  .badge-amber { @apply bg-amber-50 text-amber-800 ring-1 ring-amber-200; }
+
+  .toggle { @apply inline-flex rounded-xl p-1 bg-gray-100; }
+  .toggle button { @apply px-3 py-1.5 text-xs font-medium rounded-lg; }
+  .toggle .active { @apply bg-white shadow border border-gray-200; }
+
+  .skeleton { @apply animate-pulse bg-gray-200 rounded; }
+  .section { @apply grid gap-4 md:gap-6; }
+}
+
+/* base layout niceties */
+html, body, #__next { height: 100%; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+
+/* container side padding */
+@layer base {
+  .container { @apply px-4 sm:px-6 lg:px-8; }
+}

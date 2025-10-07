@@ -1,0 +1,254 @@
+[
+  {
+    "id": "8df7f8e4-54b9-44f8-95b5-037d3e77c436",
+    "building_id": "aaf2879d-34b3-4cf4-b596-a8656d687274",
+    "type": "electric",
+    "label": "1201250575"
+  },
+  {
+    "id": "0ad6e8af-5835-4381-9d51-0691dd212cb9",
+    "building_id": "d24a035a-621e-48f4-9baf-1f7a160ee9d5",
+    "type": "electric",
+    "label": "24600176"
+  },
+  {
+    "id": "c4b996fe-0fa5-4191-a706-314342d99dd3",
+    "building_id": "49543315-8195-4d29-8fe5-2e0ff20b970d",
+    "type": "electric",
+    "label": "40038172"
+  },
+  {
+    "id": "97a7796f-c9fd-4d43-855a-4470f935dd2c",
+    "building_id": "67fd429c-840f-4468-9e70-096e8002d209",
+    "type": "electric",
+    "label": "40406747"
+  },
+  {
+    "id": "f4a65362-2393-4785-abc9-2f11cf47e648",
+    "building_id": "a28b101b-37bd-41a1-b051-9113f6d47db8",
+    "type": "electric",
+    "label": "40379880"
+  },
+  {
+    "id": "89d54cbe-e0fc-42d7-81e1-0703786e9dcb",
+    "building_id": "b6235ea7-3ca5-42d2-9b5f-4731ca4779e3",
+    "type": "electric",
+    "label": "40406752"
+  },
+  {
+    "id": "ebc6ec9c-4c0a-4bae-90ba-737004cd8492",
+    "building_id": "28610421-e819-474d-85e2-28eed3e44a12",
+    "type": "electric",
+    "label": "40113577"
+  },
+  {
+    "id": "a0542508-ce55-48a2-aa8c-ff2913416a11",
+    "building_id": "ebfaf379-9b69-4b02-8370-f8ab170d5f0a",
+    "type": "electric",
+    "label": "40418098"
+  },
+  {
+    "id": "44837dc8-8363-4db5-ba10-292d86375c61",
+    "building_id": "aeedb686-efb7-42b0-8601-b0590e2efbfd",
+    "type": "electric",
+    "label": "40436700"
+  },
+  {
+    "id": "fd8cf7a8-40f4-42da-b6b2-e70f74c24a1e",
+    "building_id": "52003440-f502-4a1b-9f0d-a09d6913c684",
+    "type": "electric",
+    "label": "40827434"
+  },
+  {
+    "id": "c2f1ee11-2167-4362-aba4-eeca90c17ef4",
+    "building_id": "e82c13c3-f02d-445b-ab37-9a0b1783c2d3",
+    "type": "electric",
+    "label": "40406751"
+  },
+  {
+    "id": "02bb993c-a3eb-483f-a530-4788e60e4391",
+    "building_id": "b2a1a3eb-0431-49b8-9885-0b7165ea707c",
+    "type": "electric",
+    "label": "40423207"
+  },
+  {
+    "id": "846ed059-da56-4526-a61c-5642c2c3e119",
+    "building_id": "bde27c3b-97e4-49c1-a0c3-7beb4ba9d9f6",
+    "type": "electric",
+    "label": "24480223"
+  },
+  {
+    "id": "6c059a51-7280-4439-9b80-35896e203d50",
+    "building_id": "33a5d2ea-c98b-43aa-af0a-f4ad0d7fcc9c",
+    "type": "electric",
+    "label": "40276334"
+  },
+  {
+    "id": "f7f9d016-da66-415f-8a33-85cb35643600",
+    "building_id": "28610421-e819-474d-85e2-28eed3e44a12",
+    "type": "electric",
+    "label": "24937111"
+  },
+  {
+    "id": "5c806cee-144a-47b3-9ea3-b46cafed9d06",
+    "building_id": "8a4cfdd9-1d81-43d4-8f37-ed27f55266b8",
+    "type": "electric",
+    "label": "40381301"
+  },
+  {
+    "id": "08137324-4506-447a-9d8a-8c8826babaf1",
+    "building_id": "52003440-f502-4a1b-9f0d-a09d6913c684",
+    "type": "electric",
+    "label": "40282422"
+  },
+  {
+    "id": "d8287657-11b3-436e-9a40-5573c855f3bd",
+    "building_id": "46d04b79-b4d6-44a7-84a5-716766a5da80",
+    "type": "electric",
+    "label": "24600002"
+  },
+  {
+    "id": "379f0dec-95bc-45ef-bd2c-506c92f1677f",
+    "building_id": "dc008b3d-1d78-4dbf-ae0d-7c47e779c90d",
+    "type": "electric",
+    "label": "1209013533"
+  },
+  {
+    "id": "1001353c-f86f-4a5e-8e5e-6aa0097fb1b8",
+    "building_id": "dc008b3d-1d78-4dbf-ae0d-7c47e779c90d",
+    "type": "electric",
+    "label": "1202135055"
+  },
+  {
+    "id": "8eb9deab-2dc9-4c0c-82a7-d2be07be671f",
+    "building_id": "ebfaf379-9b69-4b02-8370-f8ab170d5f0a",
+    "type": "electric",
+    "label": "1201936760"
+  },
+  {
+    "id": "15efc35c-95c3-454f-bc32-bc0ec0b821a4",
+    "building_id": "047def55-7363-40ee-8e67-6b7fc9e2172d",
+    "type": "electric",
+    "label": "1201250575"
+  },
+  {
+    "id": "a22abf6f-c0e2-4a50-bb29-4d136c9909d4",
+    "building_id": "2f706d17-7511-4ae4-bde7-eb8222ac0bb5",
+    "type": "electric",
+    "label": "1201936759"
+  },
+  {
+    "id": "33f311fe-28a0-4542-bf21-3a396579f423",
+    "building_id": "358f6477-1a48-4d11-a6ee-fec049c083f2",
+    "type": "electric",
+    "label": "0306A11641"
+  },
+  {
+    "id": "e67e1146-d9a7-42c0-a6ac-da68e49a1750",
+    "building_id": "358f6477-1a48-4d11-a6ee-fec049c083f2",
+    "type": "electric",
+    "label": "0308A06984"
+  },
+  {
+    "id": "4c2d15aa-b3bc-4581-a959-4680ba36209d",
+    "building_id": "dc008b3d-1d78-4dbf-ae0d-7c47e779c90d",
+    "type": "electric",
+    "label": "1202018722"
+  },
+  {
+    "id": "d09b326d-8fb0-410b-903a-257c870cf16b",
+    "building_id": "dc008b3d-1d78-4dbf-ae0d-7c47e779c90d",
+    "type": "electric",
+    "label": "1202251469"
+  },
+  {
+    "id": "cb7f2850-b6e4-4415-9cba-31eab02b3a8a",
+    "building_id": "f4ef93d1-ce39-4acb-9065-56e1a9283b58",
+    "type": "electric",
+    "label": "1208510801"
+  },
+  {
+    "id": "bd8fb2ee-496d-4a48-b5bf-87ce992c4427",
+    "building_id": "358f6477-1a48-4d11-a6ee-fec049c083f2",
+    "type": "electric",
+    "label": "0324B12540"
+  },
+  {
+    "id": "866f97ea-3303-4db6-81b6-9453a92a48cd",
+    "building_id": "358f6477-1a48-4d11-a6ee-fec049c083f2",
+    "type": "electric",
+    "label": "0324A67432"
+  },
+  {
+    "id": "35ee5846-9d1a-4d0c-ad59-688e1eeb6afe",
+    "building_id": "b2a1a3eb-0431-49b8-9885-0b7165ea707c",
+    "type": "electric",
+    "label": "1201923440"
+  },
+  {
+    "id": "bf2f3c8e-57a5-495b-978b-6578a97ec0bb",
+    "building_id": "49543315-8195-4d29-8fe5-2e0ff20b970d",
+    "type": "electric",
+    "label": "1201343295"
+  },
+  {
+    "id": "368a0516-d2a1-4e1d-9ee0-b2637998f852",
+    "building_id": "a28b101b-37bd-41a1-b051-9113f6d47db8",
+    "type": "electric",
+    "label": "0901912053"
+  },
+  {
+    "id": "1d3e8475-be6a-49fa-98db-5efd0e8e14e2",
+    "building_id": "28610421-e819-474d-85e2-28eed3e44a12",
+    "type": "electric",
+    "label": "1202021256"
+  },
+  {
+    "id": "d73a8085-ebde-4664-87b8-d08a5de851db",
+    "building_id": "8a4cfdd9-1d81-43d4-8f37-ed27f55266b8",
+    "type": "electric",
+    "label": "1201502395"
+  },
+  {
+    "id": "4d76a186-f323-4bc9-be66-aa3572ac18fe",
+    "building_id": "e82c13c3-f02d-445b-ab37-9a0b1783c2d3",
+    "type": "electric",
+    "label": "0901912062"
+  },
+  {
+    "id": "cdff18d3-0fb3-40ef-bfe9-2f2edd20b35d",
+    "building_id": "67fd429c-840f-4468-9e70-096e8002d209",
+    "type": "electric",
+    "label": "1202149313"
+  },
+  {
+    "id": "22af72e7-1517-4699-a666-0dd84074aecc",
+    "building_id": "b6235ea7-3ca5-42d2-9b5f-4731ca4779e3",
+    "type": "electric",
+    "label": "1208510892"
+  },
+  {
+    "id": "df283229-a97c-43d5-a2fd-6b86c6463918",
+    "building_id": "33a5d2ea-c98b-43aa-af0a-f4ad0d7fcc9c",
+    "type": "electric",
+    "label": "1201909077"
+  },
+  {
+    "id": "66fdb09e-4990-4829-8603-c48c1d06b730",
+    "building_id": "46d04b79-b4d6-44a7-84a5-716766a5da80",
+    "type": "electric",
+    "label": "1208826515"
+  },
+  {
+    "id": "4f36dfad-f802-4f70-8d82-aef5d503315e",
+    "building_id": "bde27c3b-97e4-49c1-a0c3-7beb4ba9d9f6",
+    "type": "electric",
+    "label": "1200956891"
+  },
+  {
+    "id": "d139b2cf-9376-4ea8-a795-a1c12dac7523",
+    "building_id": "2f706d17-7511-4ae4-bde7-eb8222ac0bb5",
+    "type": "electric",
+    "label": "40438320"
+  }
+]

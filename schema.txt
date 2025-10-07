@@ -1,0 +1,120 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.bill_uploads (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  meter_id uuid NOT NULL,
+  storage_path text NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::upload_status,
+  uploaded_at timestamp with time zone NOT NULL DEFAULT now(),
+  error_message text,
+  CONSTRAINT bill_uploads_pkey PRIMARY KEY (id),
+  CONSTRAINT bill_uploads_meter_id_fkey FOREIGN KEY (meter_id) REFERENCES public.meters(id)
+);
+CREATE TABLE public.bills (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bill_upload_id uuid,
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  total_cost numeric CHECK (total_cost >= 0::numeric),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  demand_cost numeric CHECK (demand_cost >= 0::numeric),
+  building_id uuid NOT NULL,
+  meter_id uuid NOT NULL,
+  CONSTRAINT bills_pkey PRIMARY KEY (id),
+  CONSTRAINT bills_bill_upload_id_fkey FOREIGN KEY (bill_upload_id) REFERENCES public.bill_uploads(id),
+  CONSTRAINT bills_building_id_fkey FOREIGN KEY (building_id) REFERENCES public.buildings(id),
+  CONSTRAINT bills_meter_id_fkey FOREIGN KEY (meter_id) REFERENCES public.meters(id)
+);
+CREATE TABLE public.buildings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL,
+  name text NOT NULL,
+  address text,
+  square_feet numeric CHECK (square_feet >= 0::numeric),
+  activity_code text NOT NULL,
+  state character NOT NULL,
+  census_division text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT buildings_pkey PRIMARY KEY (id),
+  CONSTRAINT buildings_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.cbecs_eui (
+  id integer NOT NULL DEFAULT nextval('cbecs_eui_id_seq'::regclass),
+  activity_code text NOT NULL,
+  census_division text NOT NULL,
+  eui_mean numeric,
+  p25 numeric,
+  p50 numeric,
+  p75 numeric,
+  CONSTRAINT cbecs_eui_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.cbecs_gas_eui (
+  id integer NOT NULL DEFAULT nextval('cbecs_gas_eui_id_seq'::regclass),
+  activity_code text NOT NULL,
+  census_division text NOT NULL,
+  eui_mean numeric,
+  p25 numeric,
+  p50 numeric,
+  p75 numeric,
+  CONSTRAINT cbecs_gas_eui_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.cbecs_gas_eui_seed (
+  activity_code text NOT NULL,
+  census_division text NOT NULL,
+  eui_mean numeric,
+  p25 numeric,
+  p50 numeric,
+  p75 numeric
+);
+CREATE TABLE public.eia_state_prices (
+  state character NOT NULL,
+  last_updated date DEFAULT now(),
+  utility USER-DEFINED NOT NULL,
+  price_per_unit numeric,
+  unit text,
+  CONSTRAINT eia_state_prices_pkey PRIMARY KEY (state, utility)
+);
+CREATE TABLE public.memberships (
+  org_id uuid NOT NULL,
+  profile_id uuid NOT NULL,
+  role USER-DEFINED NOT NULL DEFAULT 'member'::member_role,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT memberships_pkey PRIMARY KEY (org_id, profile_id),
+  CONSTRAINT memberships_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
+  CONSTRAINT memberships_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.meters (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  building_id uuid NOT NULL,
+  type USER-DEFINED NOT NULL DEFAULT 'electric'::meter_type,
+  label text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  utility USER-DEFINED NOT NULL,
+  CONSTRAINT meters_pkey PRIMARY KEY (id),
+  CONSTRAINT meters_building_id_fkey FOREIGN KEY (building_id) REFERENCES public.buildings(id)
+);
+CREATE TABLE public.organizations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT organizations_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  email text UNIQUE,
+  full_name text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.usage_readings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  bill_id uuid NOT NULL UNIQUE,
+  usage_kwh numeric CHECK (usage_kwh >= 0::numeric),
+  therms numeric,
+  usage_mcf numeric CHECK (usage_mcf IS NULL OR usage_mcf >= 0::numeric),
+  usage_mmbtu numeric CHECK (usage_mmbtu IS NULL OR usage_mmbtu >= 0::numeric),
+  CONSTRAINT usage_readings_pkey PRIMARY KEY (id),
+  CONSTRAINT usage_readings_bill_id_fkey FOREIGN KEY (bill_id) REFERENCES public.bills(id)
+);

@@ -1,0 +1,58 @@
+[
+  {
+    "child_table": "bill_uploads",
+    "child_column": "meter_id",
+    "parent_table": "meters",
+    "parent_column": "id",
+    "constraint_name": "bill_uploads_meter_id_fkey"
+  },
+  {
+    "child_table": "bills",
+    "child_column": "bill_upload_id",
+    "parent_table": "bill_uploads",
+    "parent_column": "id",
+    "constraint_name": "bills_bill_upload_id_fkey"
+  },
+  {
+    "child_table": "bills",
+    "child_column": "building_id",
+    "parent_table": "buildings",
+    "parent_column": "id",
+    "constraint_name": "bills_building_id_fkey"
+  },
+  {
+    "child_table": "bills",
+    "child_column": "meter_id",
+    "parent_table": "meters",
+    "parent_column": "id",
+    "constraint_name": "bills_meter_id_fkey"
+  },
+  {
+    "child_table": "memberships",
+    "child_column": "org_id",
+    "parent_table": "organizations",
+    "parent_column": "id",
+    "constraint_name": "memberships_org_id_fkey"
+  },
+  {
+    "child_table": "memberships",
+    "child_column": "profile_id",
+    "parent_table": "profiles",
+    "parent_column": "id",
+    "constraint_name": "memberships_profile_id_fkey"
+  },
+  {
+    "child_table": "meters",
+    "child_column": "building_id",
+    "parent_table": "buildings",
+    "parent_column": "id",
+    "constraint_name": "meters_building_id_fkey"
+  },
+  {
+    "child_table": "usage_readings",
+    "child_column": "bill_id",
+    "parent_table": "bills",
+    "parent_column": "id",
+    "constraint_name": "usage_readings_bill_id_fkey"
+  }
+]

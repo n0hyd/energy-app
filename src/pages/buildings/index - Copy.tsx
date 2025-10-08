@@ -3,20 +3,17 @@ import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient"; // ✅ singleton client
 
-type Building = {
-  id: string;
-  name: string;
+type Building = { 
+  id: string; 
+  name: string; 
   address: string | null;
-  created_at: string;
-  org_id: string; // <-- added
+  created_at: string 
 };
 
 export default function BuildingsPage() {
   const [loading, setLoading] = useState(true);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [rlsDenied, setRlsDenied] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [orgId, setOrgId] = useState<string | null>(null);
   const redirected = useRef(false);
 
   useEffect(() => {
@@ -33,10 +30,10 @@ export default function BuildingsPage() {
         return;
       }
 
-      // 2) Load buildings (now including org_id + address)
+      // 2) Load buildings (now including address)
       const { data, error } = await supabase
         .from("buildings")
-        .select("id,name,address,created_at,org_id")
+        .select("id,name,address,created_at")
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
@@ -50,22 +47,6 @@ export default function BuildingsPage() {
         setBuildings([]);
       } else {
         setBuildings(data ?? []);
-        // Prefer org_id from first building if available
-        if ((data ?? []).length > 0 && data![0].org_id) {
-          setOrgId(data![0].org_id);
-        }
-      }
-
-      // 3) If no buildings (so no org_id yet), fall back to memberships
-      if ((!data || data.length === 0) && !cancelled) {
-        const { data: memberships, error: mErr } = await supabase
-          .from("memberships")
-          .select("org_id")
-          .order("created_at", { ascending: true })
-          .limit(1);
-        if (!mErr && memberships && memberships.length > 0) {
-          setOrgId(memberships[0].org_id);
-        }
       }
 
       setLoading(false);
@@ -75,24 +56,6 @@ export default function BuildingsPage() {
       cancelled = true;
     };
   }, []);
-
-  const handleExport = () => {
-    if (!orgId) {
-      alert("We couldn’t determine your organization. Create or select an org first.");
-      return;
-    }
-    try {
-      setExporting(true);
-      const url = `/api/pm/export-properties-template?orgId=${encodeURIComponent(orgId)}`;
-      // Navigate to trigger a file download
-      window.location.href = url;
-      // Small delay to re-enable after navigation returns (best-effort)
-      setTimeout(() => setExporting(false), 1500);
-    } catch (e) {
-      console.error(e);
-      setExporting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -121,17 +84,7 @@ export default function BuildingsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Buildings</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExport}
-            className="btn"
-            disabled={exporting || !orgId}
-            title={!orgId ? "No organization detected yet" : "Download ENERGY STAR template filled with your properties"}
-          >
-            {exporting ? "Preparing…" : "Export to ENERGY STAR"}
-          </button>
-          <Link href="/buildings/new" className="btn btn-primary">New Building</Link>
-        </div>
+        <Link href="/buildings/new" className="btn btn-primary">New Building</Link>
       </div>
 
       <div className="card p-4">

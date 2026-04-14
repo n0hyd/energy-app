@@ -348,61 +348,113 @@ export async function ingestBills(
     }
 
     // Insert bill
-    const period_start = toYmd(item.period_start);
-    const period_end = toYmd(item.period_end);
+   const period_start = toYmd(item.period_start);
+const period_end = toYmd(item.period_end);
 
-    const billInsert: any = {
-      building_id: building.id ?? null,
-      bill_upload_id: opts.billUploadId ?? null,
-      period_start,
-      period_end,
-      total_cost: item.total_cost ?? null,
-      demand_cost: item.demand_cost ?? null,
-    };
+const billInsert: any = {
+  building_id: building?.id ?? null,
+  bill_upload_id: opts.billUploadId ?? null,
+  period_start,
+  period_end,
+  total_cost: item.total_cost ?? null,
+  demand_cost: item.demand_cost ?? null,
+};
 
-    // If you added a text column on bills for provider, uncomment:
-    billInsert.utility_provider = item.utility_provider ?? null;
+// If you added a text column on bills for provider, uncomment:
+billInsert.utility_provider = item.utility_provider ?? null;
 
-    const { data: billRow, error: billErr } = await sb
-      .from("bills")
-      .insert(billInsert)
+// Do we have any usage values?
+const hasUsage =
+  (item.usage_kwh ?? null) !== null ||
+  (item.usage_mcf ?? null) !== null ||
+  (item.usage_mmbtu ?? null) !== null;
+
+let billId: string;
+let usageId: string | undefined;
+
+// Try to find an existing bill for this meter + period.
+// We do this through usage_readings joined to bills.
+let existingUsage: any | null = null;
+
+if (meterId) {
+  const { data: existing, error: existingErr } = await sb
+    .from("usage_readings")
+    .select("id, bill_id, bills!inner(id, period_start, period_end)")
+    .eq("meter_id", meterId)
+    .eq("bills.period_start", period_start)
+    .eq("bills.period_end", period_end)
+    .limit(1);
+
+  if (existingErr) throw existingErr;
+  existingUsage = existing && existing[0] ? existing[0] : null;
+}
+
+if (existingUsage) {
+  // ✅ Update existing bill
+  billId = existingUsage.bill_id as string;
+
+  const { error: billUpdateErr } = await sb
+    .from("bills")
+    .update(billInsert)
+    .eq("id", billId);
+
+  if (billUpdateErr) throw billUpdateErr;
+
+  // ✅ Update existing usage row if we have usage values
+  if (hasUsage) {
+    const { error: usageUpdateErr } = await sb
+      .from("usage_readings")
+      .update({
+        usage_kwh: item.usage_kwh ?? null,
+        usage_mcf: item.usage_mcf ?? null,
+        usage_mmbtu: item.usage_mmbtu ?? null,
+      })
+      .eq("id", existingUsage.id);
+
+    if (usageUpdateErr) throw usageUpdateErr;
+  }
+
+  usageId = existingUsage.id as string;
+  notes.push("Updated existing bill for this meter and period");
+} else {
+  // ✅ No existing bill → insert a new one
+  const { data: billRow, error: billErr } = await sb
+    .from("bills")
+    .insert(billInsert)
+    .select("id")
+    .single();
+
+  if (billErr) throw billErr;
+  billId = (billRow as BillRow).id;
+
+  // Insert usage if present
+  if (hasUsage) {
+    const { data: usageRow, error: usageErr } = await sb
+      .from("usage_readings")
+      .insert({
+        bill_id: billId,
+        meter_id: meterId, // may be null if we elected not to create/attach
+        usage_kwh: item.usage_kwh ?? null,
+        usage_mcf: item.usage_mcf ?? null,
+        usage_mmbtu: item.usage_mmbtu ?? null,
+      })
       .select("id")
       .single();
 
-    if (billErr) throw billErr;
+    if (usageErr) throw usageErr;
+    usageId = (usageRow as UsageRow).id;
+  }
+}
 
-    // Insert usage if present
-    let usageId: string | undefined;
-    const hasUsage =
-      (item.usage_kwh ?? null) !== null ||
-      (item.usage_mcf ?? null) !== null ||
-      (item.usage_mmbtu ?? null) !== null;
+results.push({
+  building_id: building?.id ?? null,
+  meter_id: meterId,
+  bill_id: billId,
+  usage_reading_id: usageId,
+  matched_by,
+  notes,
+});
 
-    if (hasUsage) {
-      const { data: usageRow, error: usageErr } = await sb
-        .from("usage_readings")
-        .insert({
-          bill_id: billRow!.id,
-          meter_id: meterId, // may be null if we elected not to create/attach
-          usage_kwh: item.usage_kwh ?? null,
-          usage_mcf: item.usage_mcf ?? null,
-          usage_mmbtu: item.usage_mmbtu ?? null,
-        })
-        .select("id")
-        .single();
-
-      if (usageErr) throw usageErr;
-      usageId = (usageRow as UsageRow).id;
-    }
-
-    results.push({
-      building_id: building.id ?? null,
-      meter_id: meterId,
-      bill_id: (billRow as BillRow).id,
-      usage_reading_id: usageId,
-      matched_by,
-      notes,
-    });
   }
 
   return results;

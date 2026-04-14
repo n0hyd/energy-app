@@ -1,6 +1,8 @@
 /* src/styles/globals.css */
 @import "tailwindcss";
-
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 /* plugins (v4) */
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";

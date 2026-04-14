@@ -1,0 +1,49 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "energy-app"
+    }
+  ],
+  "settings": {
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/dist": true,
+      "**/.git": true,
+      "**/.supabase": true
+    },
+    "files.exclude": {
+      "**/*Copy*.tsx": true,
+      "**/*Copy*.ts": true,
+      "**/*-old.tsx": true,
+      "**/*-old.ts": true,
+      "**/*-OFF.ts": true,
+      "**/*-backkup.ts": true,
+      "**/*.backup": true,
+      "**/node_modules": true,
+      "**/.next": true
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true
+    },
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true
+    },
+    "files.watcherExclude": {
+      "**/node_modules/**": true,
+      "**/.next/**": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss",
+      "supabase.supabase-js",
+      "ms-playwright.playwright"
+    ]
+  }
+}

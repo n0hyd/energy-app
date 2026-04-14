@@ -24,6 +24,13 @@ type InboundItem = {
   period_end: string;                // ISO yyyy-mm-dd
   total_cost?: number | string | null;
   demand_cost?: number | string | null;
+  demand_charge_usd?: number | string | null;
+  actual_demand_kw?: number | string | null;
+  adjusted_demand_kw?: number | string | null;
+  summer_peak_kw?: number | string | null;
+  ratchet_kw?: number | string | null;
+  billing_demand_kw?: number | string | null;
+  tariff_min_kw?: number | string | null;
 
   // Usage (various aliases supported)
   usage_kwh?: number | string | null;
@@ -107,6 +114,7 @@ console.log("[ingest] hit", {
 
     let createdBills = 0;
     let upsertedUsage = 0;
+    let demandFactsRefresh: unknown = null;
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -130,29 +138,6 @@ console.log("[ingest] hit", {
 
       // (B) meter-first: find building by meter label
       if (!buildingId && meterLabel) {
-// --- DEBUG: show what we're about to write into usage_readings ---
-console.log("[ingest] usage_readings payload", {
-  bill_id: billId,
-  isGas,
-  provider,
-  meterType,
-  heatContent,
-  // inputs
-  raw_in: {
-    usage_kwh_in: usageKwh,
-    usage_mcf_in: usageMcf,
-    usage_mmbtu_in: usageMmbtuInput,
-    usage_ccf_in: usageCcf,
-    usage_therms_in: usageTherms,
-  },
-  // the computed/derived values we'll persist
-  final_out: {
-    usage_kwh: !isGas ? usageKwh : null,
-    usage_mcf:  isGas ? usageMcf : null,
-    usage_mmbtu: isGas ? usageMmbtuDerived : null,
-  },
-});
-        
 const { data: m, error: mErr } = await supabase
           .from("meters")
           .select("building_id")
@@ -231,6 +216,13 @@ const { data: m, error: mErr } = await supabase
 
       const total_cost = numOrNull(it.total_cost);
       const demand_cost = numOrNull(it.demand_cost);
+      const demand_charge_usd = numOrNull(it.demand_charge_usd ?? it.demand_cost);
+      const actual_demand_kw = numOrNull(it.actual_demand_kw);
+      const adjusted_demand_kw = numOrNull(it.adjusted_demand_kw);
+      const summer_peak_kw = numOrNull(it.summer_peak_kw);
+      const ratchet_kw = numOrNull(it.ratchet_kw);
+      const billing_demand_kw = numOrNull(it.billing_demand_kw);
+      const tariff_min_kw = numOrNull(it.tariff_min_kw);
 
       let billId = "";
       let createdBill = false;
@@ -255,6 +247,13 @@ const { data: m, error: mErr } = await supabase
           .update({
             total_cost,
             demand_cost,
+            demand_charge_usd,
+            actual_demand_kw,
+            adjusted_demand_kw,
+            summer_peak_kw,
+            ratchet_kw,
+            billing_demand_kw,
+            tariff_min_kw,
             bill_upload_id: billUploadId,
           })
           .eq("id", existingBill.id)
@@ -277,6 +276,13 @@ const { data: m, error: mErr } = await supabase
             period_end,
             total_cost,
             demand_cost,
+            demand_charge_usd,
+            actual_demand_kw,
+            adjusted_demand_kw,
+            summer_peak_kw,
+            ratchet_kw,
+            billing_demand_kw,
+            tariff_min_kw,
           })
           .select("id")
           .single();
@@ -432,6 +438,13 @@ verifyRow = verify;
       return res.status(400).json({ ok: false, error: "Missing buildingId on one or more items (no match selected/found).", results });
     }
 
+    const { data: demandFactsRefreshData, error: demandFactsRefreshErr } = await supabase.rpc(
+      "refresh_green_button_demand_facts_monthly_mv"
+    );
+    demandFactsRefresh = demandFactsRefreshErr
+      ? { ok: false, error: demandFactsRefreshErr.message }
+      : demandFactsRefreshData ?? null;
+
     return res.status(200).json({
       ok: true,
       summary: {
@@ -439,6 +452,7 @@ verifyRow = verify;
         billsCreated: createdBills,
         usageRowsUpserted: upsertedUsage,
       },
+      demandFactsRefresh,
       results,
     });
   } catch (err: any) {

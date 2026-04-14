@@ -31,6 +31,35 @@ async function pmGetXml(path: string) {
   return await resp.text();
 }
 
+// POST an XML payload to PM and return response XML
+async function pmPostXml(path: string, xmlBody: string): Promise<string> {
+  const url = `${PM_BASE_URL}${path}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(),
+      "Content-Type": "application/xml",
+      Accept: "application/xml",
+    },
+    body: xmlBody,
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    console.error("[PM POST]", url, res.status, res.statusText, text);
+    throw new Error(
+      `PM POST ${path} failed: ${res.status} ${res.statusText} – ${text.slice(
+        0,
+        300
+      )}`
+    );
+  }
+
+  return text;
+}
+
+
 /**
  * Parse the minimal info we need from PM's meter list XML.
  * This is intentionally simple and tolerant; adjust if your XML differs.
@@ -89,12 +118,14 @@ type DryRunAction = {
   decision: "link" | "create" | "skip";
   reason: string;
   chosenPmMeterId?: string;
+  existingPmMeterId?: string | null; // ⭐ NEW: local pm_meter_id, if already set
 };
 
 type SyncActionResult = DryRunAction & {
   wrotePmMeterId?: string;
   dbUpdated?: boolean;
   pmCall?: "link" | "create";
+  associated?: boolean;
 };
 
 function normalize(s?: string | null) {
@@ -114,10 +145,112 @@ async function linkExistingPmMeter(_pmPropertyId: string, pmMeterId: string) {
   return pmMeterId; // no PM call; we just persist the ID locally
 }
 
-// Create is intentionally disabled here to avoid sending malformed XML.
-// We’ll wire this to your real client once we confirm its export names.
-async function createPmMeter(_pmPropertyId: string, _local: MeterRow) {
-throw new Error("PM create not implemented in this route yet — dry-run and 'link' will work. We’ll hook 'create' to your client next.");
+
+
+async function associateMeterWithProperty(
+  pmPropertyId: string,
+  pmMeterId: string
+): Promise<void> {
+  const path = `/association/property/${encodeURIComponent(
+    pmPropertyId
+  )}/meter/${encodeURIComponent(pmMeterId)}`;
+
+  const url = `${PM_BASE_URL}${path}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(),
+      Accept: "application/xml",
+    },
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    console.error("[PM ASSOCIATE]", url, res.status, res.statusText, text);
+    throw new Error(
+      `PM associate meter failed: ${res.status} ${res.statusText} – ${text.slice(
+        0,
+        300
+      )}`
+    );
+  }
+}
+
+
+function mapLocalTypeToPm(localType: string) {
+  const t = (localType || "").toLowerCase().trim();
+
+  // You can tweak these based on your meters table
+  if (t === "electric" || t === "electricity") {
+    return {
+      type: "Electric",
+      unitOfMeasure: "kWh (thousand Watt-hours)",
+    };
+  }
+
+  if (t === "gas" || t === "natural gas") {
+    return {
+      type: "Natural Gas",
+      unitOfMeasure: "kBtu (thousand Btu)",
+    };
+  }
+
+  // Fallback: generic energy meter
+  return {
+    type: "Other (Energy)",
+    unitOfMeasure: "kBtu (thousand Btu)",
+  };
+}
+
+
+// Create a real PM meter on a property and return its PM meter id
+async function createPmMeter(pmPropertyId: string, local: MeterRow): Promise<string> {
+  if (!pmPropertyId) {
+    throw new Error("Missing pmPropertyId when creating PM meter");
+  }
+
+  const { type, unitOfMeasure } = mapLocalTypeToPm(local.type);
+
+  const meterName =
+    (local.label && local.label.trim()) ||
+    (local.provider && `${local.provider} – ${type}`) ||
+    `${type} – ${local.building_name}`;
+
+  // For firstBillDate you could look up earliest bill; using a safe default is fine for now
+  const firstBillDate = "2010-01-01";
+
+  const xmlBody = `<?xml version="1.0" encoding="UTF-8"?>
+<meter>
+  <type>${type}</type>
+  <name>${meterName}</name>
+  <unitOfMeasure>${unitOfMeasure}</unitOfMeasure>
+  <metered>true</metered>
+  <firstBillDate>${firstBillDate}</firstBillDate>
+  <inUse>true</inUse>
+  <aggregateMeter>true</aggregateMeter>
+</meter>`;
+
+  const responseXml = await pmPostXml(
+    `/property/${encodeURIComponent(pmPropertyId)}/meter`,
+    xmlBody
+  );
+
+  const parser = new XMLParser({ ignoreAttributes: false });
+  const parsed = parser.parse(responseXml);
+
+  const id =
+    parsed?.response?.id ??
+    parsed?.response?.links?.link?.["@_id"] ??
+    null;
+
+  if (!id) {
+    throw new Error(
+      `PM meter create returned no id. Raw response: ${responseXml.slice(0, 300)}`
+    );
+  }
+
+  return String(id);
 }
 
 function chooseMatch(pmMeters: any[], local: MeterRow, localNum: string | null) {
@@ -161,7 +294,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, mode: dry ? "dry-run" : "live", count: 0, message: "No properties with pm_property_id." });
     }
 
-    // 2) Candidate meters: pm_meter_id IS NULL and belongs to those buildings
+        // 2) Candidate meters: any meter on those buildings (we'll branch on pm_meter_id later)
     const { data: meters, error: mErr } = await supabaseAdmin
       .from("meters")
       .select(`
@@ -177,8 +310,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           pm_property_id
         )
       `)
-      .is("pm_meter_id", null)
       .in("building_id", buildingIds);
+
 
     if (mErr) return res.status(500).json({ ok: false, error: `Meters query failed: ${mErr.message}` });
 
@@ -204,9 +337,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // 3) Dry-run decision build
+       // 3) Dry-run decision build
     const dryRun: DryRunAction[] = [];
     for (const row of input) {
+      // ⭐ If this meter already has a pm_meter_id locally, we'll only ASSOCIATE it.
+      if (row.pm_meter_id) {
+        dryRun.push({
+          meter_id: row.id,
+          building: row.building_name,
+          pmPropertyId: row.pm_property_id,
+          localMeterNumber: extractLocalMeterNumber(row),
+          localType: row.type,
+          localProvider: row.provider,
+          decision: "skip", // no link/create; just associate in live step
+          reason: "Already has pm_meter_id; will only associate with property for metrics.",
+          existingPmMeterId: row.pm_meter_id,
+        });
+        continue;
+      }
+
+      // ⭐ No pm_meter_id yet: decide link vs create based on PM meters list
       const pmMeters = await listPmMetersForProperty(row.pm_property_id);
       const localNum = extractLocalMeterNumber(row);
       const choice = chooseMatch(pmMeters, row, localNum);
@@ -217,12 +367,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pmPropertyId: row.pm_property_id,
         localMeterNumber: localNum,
         localType: row.type,
-        localProvider: row.provider,                // ✅ provider
+        localProvider: row.provider,
         decision: choice.decision,
         reason: choice.reason,
         chosenPmMeterId: (choice as any).pmMeterId,
+        existingPmMeterId: null,
       });
     }
+
 
     if (dry) {
       return res.status(200).json({
@@ -241,7 +393,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         let pmMeterId: string | undefined;
 
-        if (action.decision === "link" && action.chosenPmMeterId) {
+// ⭐ ASSOCIATE-ONLY PATH: meter already has pm_meter_id locally
+        if (action.existingPmMeterId) {
+          try {
+            await associateMeterWithProperty(action.pmPropertyId, action.existingPmMeterId);
+            base.associated = true;
+          } catch (assocErr: any) {
+            base.reason = (base.reason ? base.reason + " " : "") +
+              `Association failed: ${assocErr?.message || String(assocErr)}`;
+          }
+
+          results.push(base);
+          continue; // skip link/create logic below for this meter
+        }
+
+        // ⭐ ORIGINAL link/create logic for brand-new meters
+
+                if (action.decision === "link" && action.chosenPmMeterId) {
           pmMeterId = await linkExistingPmMeter(action.pmPropertyId, action.chosenPmMeterId);
           base.pmCall = "link";
         } else if (action.decision === "create") {
@@ -264,8 +432,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           } else {
             base.dbUpdated = true;
             base.wrotePmMeterId = pmMeterId;
+
+            // 🔹 NEW: associate this meter with the property so PM uses it for metrics
+            try {
+              await associateMeterWithProperty(action.pmPropertyId, pmMeterId);
+              base.associated = true;
+            } catch (assocErr: any) {
+              base.reason = (base.reason ? base.reason + " " : "") +
+                `Association failed: ${assocErr?.message || String(assocErr)}`;
+            }
           }
         }
+
+
 
         results.push(base);
       } catch (e: any) {
@@ -273,8 +452,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    const linked = results.filter(r => r.pmCall === "link").length;
+        const linked = results.filter(r => r.pmCall === "link").length;
     const created = results.filter(r => r.pmCall === "create").length;
+    const associated = results.filter(r => r.associated).length;
 
     return res.status(200).json({
       ok: true,
@@ -282,8 +462,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       total: results.length,
       linked,
       created,
+      associated,
       results,
     });
+
+
   } catch (err: any) {
     console.error("[meter-sync] crashed:", err);
     return res.status(500).json({ ok: false, error: err?.message || String(err) });

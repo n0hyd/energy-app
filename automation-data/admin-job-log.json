@@ -1,0 +1,122 @@
+[
+  {
+    "time": "2026-03-14T17:43:10.154Z",
+    "scriptName": "woodriver-download-bills.mjs",
+    "result": "success",
+    "message": "Completed. Saved 2."
+  },
+  {
+    "time": "2026-03-14T17:41:43.450Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "success",
+    "message": "Completed. Saved 14."
+  },
+  {
+    "time": "2026-03-14T17:36:50.647Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: Authentication did not reach the account page. Check credentials/selectors, or complete MFA manually."
+  },
+  {
+    "time": "2026-03-10T21:36:15.850Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "success",
+    "message": "Completed. Saved 14."
+  },
+  {
+    "time": "2026-03-10T21:24:34.905Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "page.waitForTimeout: Target page, context or browser has been closed"
+  },
+  {
+    "time": "2026-03-10T21:11:20.239Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:57:41.303Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "success",
+    "message": "Completed. Saved 1."
+  },
+  {
+    "time": "2026-03-09T22:51:23.782Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:43:17.571Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:40:29.423Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:34:34.430Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:28:37.640Z",
+    "scriptName": "kgs-download-bills.mjs",
+    "result": "fail",
+    "message": "Error: No address options found. Set KGS selectors or provide KGS_ACCOUNT_TOKENS/KGS_ACCOUNT_TEXT_TOKENS."
+  },
+  {
+    "time": "2026-03-09T22:22:57.874Z",
+    "scriptName": "evergy-download-bills.mjs",
+    "result": "success",
+    "message": "Completed. Saved 26."
+  },
+  {
+    "time": "2026-03-07T06:18:42.139Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "success",
+    "message": "Completed. Saved 13."
+  },
+  {
+    "time": "2026-03-06T17:21:24.981Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "success",
+    "message": "Completed. Saved 13."
+  },
+  {
+    "time": "2026-03-06T16:44:20.954Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "success",
+    "message": "Completed. Saved 12."
+  },
+  {
+    "time": "2026-03-06T15:36:03.480Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "success",
+    "message": "Completed. Saved 13."
+  },
+  {
+    "time": "2026-03-06T15:30:40.863Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "fail",
+    "message": "Error: Authentication did not reach Green Button page. url=https://www.evergy.com/log-in?returnUrl=%2fala%2fenergy-dashboard%2fgreen-button-download formCount=0 addressCount=0 addressInputCount=0 loginDetected=false"
+  },
+  {
+    "time": "2026-03-06T14:20:20.665Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "fail",
+    "message": "Error: Authentication did not reach Green Button page. url=https://www.evergy.com/log-in?returnUrl=%2fala%2fenergy-dashboard%2fgreen-button-download formCount=0 addressCount=0 addressInputCount=0 loginDetected=false"
+  },
+  {
+    "time": "2026-03-06T14:18:44.392Z",
+    "scriptName": "evergy-download-green-button.mjs",
+    "result": "fail",
+    "message": "Error: Authentication did not reach Green Button page. url=https://www.evergy.com/log-in?returnUrl=%2fala%2fenergy-dashboard%2fgreen-button-download formCount=0 addressCount=0 addressInputCount=0 loginDetected=false"
+  }
+]

@@ -33,7 +33,9 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // If already signed in, skip the form and go where we were headed
   useEffect(() => {
@@ -45,6 +47,7 @@ export default function SignInPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -57,6 +60,28 @@ export default function SignInPage() {
 
     // Go to intended destination (e.g., /buildings) instead of always /dashboard
     router.replace(redirect);
+  }
+
+  async function handleForgotPassword() {
+    setError(null);
+    setInfo(null);
+
+    if (!email) {
+      setError("Enter your email first, then click Forgot password.");
+      return;
+    }
+
+    setResetLoading(true);
+    const redirectTo = `${window.location.origin}/auth/sign-in`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    setResetLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setInfo("If that email exists, a password reset link has been sent.");
   }
 
   return (
@@ -80,10 +105,14 @@ export default function SignInPage() {
           required
         />
         <button type="submit" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Signing in..." : "Sign in"}
+        </button>
+        <button type="button" onClick={handleForgotPassword} disabled={resetLoading}>
+          {resetLoading ? "Sending reset link..." : "Forgot password?"}
         </button>
       </form>
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {info && <p style={{ color: "green" }}>{info}</p>}
     </div>
   );
 }

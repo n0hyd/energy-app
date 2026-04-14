@@ -22,6 +22,12 @@ type Item = {
   section_total_cost?: number | null;
   total_cost?: number | null;
   demand_cost?: number | null;
+  actual_demand_kw?: number | null;
+  adjusted_demand_kw?: number | null;
+  summer_peak_kw?: number | null;
+  ratchet_kw?: number | null;
+  billing_demand_kw?: number | null;
+  tariff_min_kw?: number | null;
   hints?: string[];
   __sourceFile?: string;
   __vendor?: Parsed["vendor"];
@@ -76,6 +82,12 @@ function mergeTwo(a: Item, b: Item): Item {
     section_total_cost: pick(a.section_total_cost ?? null, b.section_total_cost ?? null) ?? null,
     total_cost: pick(a.total_cost ?? null, b.total_cost ?? null) ?? null,
     demand_cost: pick(a.demand_cost ?? null, b.demand_cost ?? null) ?? null,
+    actual_demand_kw: pick(a.actual_demand_kw ?? null, b.actual_demand_kw ?? null) ?? null,
+    adjusted_demand_kw: pick(a.adjusted_demand_kw ?? null, b.adjusted_demand_kw ?? null) ?? null,
+    summer_peak_kw: pick(a.summer_peak_kw ?? null, b.summer_peak_kw ?? null) ?? null,
+    ratchet_kw: pick(a.ratchet_kw ?? null, b.ratchet_kw ?? null) ?? null,
+    billing_demand_kw: pick(a.billing_demand_kw ?? null, b.billing_demand_kw ?? null) ?? null,
+    tariff_min_kw: pick(a.tariff_min_kw ?? null, b.tariff_min_kw ?? null) ?? null,
     hints: [...(a.hints ?? []), ...(b.hints ?? [])],
     __sourceFile: a.__sourceFile || b.__sourceFile,
     __vendor: a.__vendor || b.__vendor,
@@ -94,6 +106,12 @@ function completenessScore(i: Item): number {
     i.total_cost,
     i.section_total_cost,
     i.demand_cost,
+    i.actual_demand_kw,
+    i.adjusted_demand_kw,
+    i.summer_peak_kw,
+    i.ratchet_kw,
+    i.billing_demand_kw,
+    i.tariff_min_kw,
   ];
   return fields.reduce((n, v) => n + (v !== undefined && v !== null && v !== "" ? 1 : 0), 0);
 }
@@ -338,140 +356,294 @@ function parseEvergy(text: string): Parsed {
     return end >= 0 ? tail.slice(0, end) : tail;
   }
 
-  type EvergyCols = {
-    rateCodes: string[];                           // WSSES, MV20KS, ...
-    meters: string[];                              // aligned to columns
-    periods: Array<{ start: string|null; end: string|null }>;
-    kwh: Array<number | null>;                    // from "Energy use kWh" row
-    demandCost: Array<number | null>;             // from Charges "Demand ..." $
-  };
+	    type EvergyCols = {
+	    rateCodes: string[];                           // WSSES, MV20KS, ...
+	    meters: string[];                              // aligned to columns
+	    periods: Array<{ start: string | null; end: string | null }>;
+	    kwh: Array<number | null>;                    // from "Energy use kWh" row
+	    demandCost: Array<number | null>;             // from Charges "Demand ..." $
+	    actualDemandKw: Array<number | null>;         // from "Actual demand kW"
+	    adjustedDemandKw: Array<number | null>;       // from "Adjusted demand kW"
+	    summerPeakKw: Array<number | null>;           // from "Summer peak kW"
+	    ratchetKw: Array<number | null>;              // from "50% of summer peak kW"
+	    billingDemandKw: Array<number | null>;        // from "Billing Demand kW"
+	    tariffMinKw: Array<number | null>;            // from "Tariff minimum demand kW"
+	    sectionTotal: Array<number | null>;           // from "Total current charges" row per column
+	  };
+
+   function parsePageGrid(pageText: string): EvergyCols | null {
+    // Find the CURRENT CHARGES block on this page only
+    const startIdx = pageText.search(/CURRENT\s+CHARGES\b/i);
+    if (startIdx < 0) return null;
+    const tail = pageText.slice(startIdx);
+    const endIdx = tail.search(
+      /(?:\n\s*RATE CODES|\n\s*Taxes\b|Page\s+\d+\s+of\s+\d+|--- PAGE \d+ ---|\n\s*Summary\b)/i
+    );
+    const block = endIdx >= 0 ? tail.slice(0, endIdx) : tail;
+
+    const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const num = (s: string) => parseFloat(s.replace(/,/g, ""));
+
+    // Helper: parse a row "tail" into up to N numbers, preserving column positions.
+    const parseTailRow = (
+      tailText: string,
+      N: number,
+      opts: { treatDashAsZero?: boolean } = {}
+    ): (number | null)[] => {
+      const { treatDashAsZero = false } = opts;
+      const out: (number | null)[] = [];
+      const tokens = tailText.split(/\s+/).filter(Boolean);
+
+      for (const token of tokens) {
+        if (out.length >= N) break;
+
+        // Preserve placeholder columns even when PDFs use Unicode dash variants.
+        const normalizedToken = token.replace(/[\u2012\u2013\u2014\u2212]/g, "-");
+        if (/^-+$/.test(normalizedToken)) {
+          out.push(treatDashAsZero ? 0 : null);
+          continue;
+        }
+
+        // Strip weird glyphs, $, etc., keep digits, commas, dot, minus.
+        let raw = normalizedToken.replace(/[^\d,\.\-]/g, "");
+        if (!raw) continue;
+
+        // Handle dashes as explicit "no value" but keep the column position
+        if (raw === "-" || raw === "--") {
+          out.push(treatDashAsZero ? 0 : null);
+          continue;
+        }
+
+        const cleaned = raw.replace(/,/g, "");
+        if (/^-?\d+(?:\.\d+)?$/.test(cleaned)) {
+          out.push(parseFloat(cleaned));
+        }
+      }
+
+      // Pad to N columns so everything stays aligned
+      while (out.length < N) out.push(null);
+      return out;
+    };
+
+    // ---- Rate codes (robust): optional colon; ignore "(See Definitions)"
+    const rateTail =
+      pageText.match(/Rate\s*code(?:\s*\([^\)]+\))?\s*:?\s*([^\n]+)/i)?.[1]?.trim() || "";
+    let rateCodes = [...rateTail.matchAll(/\b[A-Z0-9]{3,}\b/g)].map(m => m[0]);
+
+    // ---- Meter(s): use only the part of the line BEFORE "Rate code"
+    const meterLineRaw = lines.find(l => /\bMeter\b/i.test(l)) || "";
+    const meterLeft = meterLineRaw.split(/\bRate\s*code\b/i)[0] || meterLineRaw;
+    const meterTokensInGrid = meterLeft
+      .split(/\s+/)
+      .map(t => t.replace(/[^\w-]/g, "")) // strip glyphs/colons
+      .filter(Boolean)
+      .filter(tok => /^[0-9][0-9\-]{5,}$/.test(tok)); // numeric/hyphen tokens only
+
+    // ---- Determine number of columns N (from rate codes / meters, not kWh)
+    const N = Math.max(rateCodes.length || 0, meterTokensInGrid.length || 0, 1);
+    if (rateCodes.length === 0) rateCodes.push("COL1");
+    while (rateCodes.length < N) rateCodes.push(`COL${rateCodes.length + 1}`);
+    if (rateCodes.length > N) rateCodes.splice(N);
+
+    // ---- Meters: rightmost N numeric tokens; if none in-grid, try header fallback
+    let meters = meterTokensInGrid.slice(-N);
+    if (meters.length === 0) {
+      const normAll = (page1 + "\n" + page2 + "\n" + page3)
+        .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
+        .replace(/[ \t]+/g, " ");
+      const headerMeterRxs: RegExp[] = [
+        /\bMeter\s*#\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
+        /\bMeter[\s\u2000-\u200B\uE000-\uF8FF]*#?[\s\u2000-\u200B\uE000-\uF8FF]*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
+        /\bMeter\s+Number\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
+        /\bService\s+ID\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
+      ];
+      let found: string | null = null;
+      for (const rx of headerMeterRxs) {
+        const m = normAll.match(rx);
+        if (m?.[1]) {
+          found = m[1].replace(/[^\w-]/g, "");
+          break;
+        }
+      }
+      meters = Array(N).fill(found || "");
+    } else {
+      while (meters.length < N) meters.push("");
+      if (meters.length > N) meters = meters.slice(-N);
+    }
+
+    // ---- Periods: try in-grid; else banner on p1/this page
+    const perLine = lines.find(l => /\bBilling\s+period\b/i.test(l)) || "";
+    const inGridPairs = [
+      ...perLine.matchAll(
+        /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/g
+      ),
+    ];
+    const bannerPer =
+      page1.match(
+        /\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      ) ||
+      pageText.match(
+        /\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      );
+    const periods = Array.from({ length: N }, () => ({
+      start: null as string | null,
+      end: null as string | null,
+    }));
+    if (inGridPairs.length) {
+      const lastN = inGridPairs.slice(-N);
+      for (let i = 0; i < N; i++) {
+        const p = lastN[i - (N - lastN.length)] || null;
+        if (p) periods[i] = { start: p[1], end: p[2] };
+      }
+    } else if (bannerPer) {
+      for (let i = 0; i < N; i++) periods[i] = { start: bannerPer[1], end: bannerPer[2] };
+    }
+
+    // ---- kWh per column: parse the line AFTER "kWh"
+    let kwh: (number | null)[] = Array(N).fill(null);
+    {
+      const normLines = lines.map(l =>
+        l
+          .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
+          .replace(/k\W*w\W*h/gi, "kWh")
+          .replace(/[ \t]+/g, " ")
+          .trim()
+      );
+      const kwhIdx = normLines.findIndex(l => /Energy\s+use\b.*\bkWh\b/i.test(l));
+      if (kwhIdx >= 0) {
+        const raw = lines[kwhIdx].replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ");
+        const m = raw.match(/kWh\s*(.*)$/i);
+        const tailAfter = m ? m[1] : "";
+        kwh = parseTailRow(tailAfter, N, { treatDashAsZero: true });
+      } else {
+        // Fallback: single-meter heuristics into first column only
+        const m2 = block
+          .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
+          .match(/Energy\s+use[\s\S]{0,80}?([0-9][\d,]*(?:\.\d+)?)/i);
+        if (m2) {
+          kwh[0] = num(m2[1]);
+        } else {
+          const pres = block.match(/Present\s+meter\s+read[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
+          const prev = block.match(/Previous\s+meter\s+read[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
+          const mult = block.match(/Billing\s+multiplier[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
+          if (pres && prev) {
+            kwh[0] = Math.max(
+              0,
+              (num(pres[1]) - num(prev[1])) * (mult ? num(mult[1]) : 1)
+            );
+          }
+        }
+      }
+    }
+
+    // ---- Demand $ per column (if present): from "Demand" charges row
+    let demandCost: (number | null)[] = Array(N).fill(null);
+    {
+      const chargesIdx = lines.findIndex(l => /^Charges\b/i.test(l));
+      const chargesLines = chargesIdx >= 0 ? lines.slice(chargesIdx) : lines;
+      const demandRow = chargesLines.find(l => /^Demand\b/i.test(l));
+      if (demandRow) {
+        const raw = demandRow.replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ");
+        const m = raw.match(/Demand[^\$]*\$(.*)$/i);
+        const tailAfter = m ? m[1] : raw.replace(/^Demand\b/i, "");
+        demandCost = parseTailRow(tailAfter, N, { treatDashAsZero: true });
+      }
+    }
+
+    const parseKwMetricRow = (rowLabelRegex: RegExp): (number | null)[] => {
+      const normLines = lines.map((l) =>
+        l
+          .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
+          .replace(/[ \t]+/g, " ")
+          .trim()
+      );
+      const idx = normLines.findIndex((l) => rowLabelRegex.test(l));
+      if (idx < 0) return Array(N).fill(null);
+
+      const raw = normLines[idx];
+      const m = raw.match(rowLabelRegex);
+      const tailAfter =
+        m && m.index != null ? raw.slice(m.index + m[0].length).replace(/^[:\s]+/, "") : raw;
+      return parseTailRow(tailAfter, N, { treatDashAsZero: false });
+    };
+
+    const actualDemandKw = parseKwMetricRow(/Actual\s+Demand\s*kW/i);
+    const adjustedDemandKw = parseKwMetricRow(/Adjusted\s+Demand\s*kW/i);
+    const summerPeakKw = parseKwMetricRow(/Summer\s+Peak\s*kW/i);
+    const ratchetKw = parseKwMetricRow(/(?:50|0)\s*%\s+of\s+Summer\s+Peak\s*kW/i);
+    const billingDemandKw = parseKwMetricRow(/Billing\s+Demand\s*kW/i);
+    const tariffMinKw = parseKwMetricRow(/Tariff\s+Minimum\s+Demand\s*kW/i);
+
+    // ---- Section total $ per column: "Total current charges"
+    let sectionTotal: (number | null)[] = Array(N).fill(null);
+    {
+      const totalLine =
+        lines.find(l => /^Total\s+current\s+charges\b/i.test(l)) || "";
+      if (totalLine) {
+        const raw = totalLine.replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ");
+        const m = raw.match(/charges[^\$]*\$(.*)$/i);
+        const tailAfter = m ? m[1] : raw.replace(/^Total\s+current\s+charges\b/i, "");
+        sectionTotal = parseTailRow(tailAfter, N, { treatDashAsZero: true });
+      }
+    }
+
+    hints.push(
+      `evergy: page N=${N} rates=[${rateCodes.join(", ")}] meters=[${meters.join(
+        "|"
+      )}] kwh=[${kwh.map(v => v ?? "null").join("|")}] actual_demand_kw=[${actualDemandKw
+        .map((v) => v ?? "null")
+        .join("|")}] adjusted_demand_kw=[${adjustedDemandKw
+        .map((v) => v ?? "null")
+        .join("|")}] summer_peak_kw=[${summerPeakKw
+        .map((v) => v ?? "null")
+        .join("|")}] ratchet_kw=[${ratchetKw
+        .map((v) => v ?? "null")
+        .join("|")}] billing_demand_kw=[${billingDemandKw
+        .map((v) => v ?? "null")
+        .join("|")}] tariff_min_kw=[${tariffMinKw.map((v) => v ?? "null").join("|")}]`
+    );
+
+    return {
+      rateCodes,
+      meters,
+      periods,
+      kwh,
+      demandCost,
+      actualDemandKw,
+      adjustedDemandKw,
+      summerPeakKw,
+      ratchetKw,
+      billingDemandKw,
+      tariffMinKw,
+      sectionTotal,
+    };
+  }
 
   function parseMulti(): EvergyCols | null {
-  const block = findCurrentChargesBlock();
-  if (!block) return null;
+    const cols2 = parsePageGrid(page2);
+    const cols3 = parsePageGrid(page3);
 
-  const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const num = (s: string) => parseFloat(s.replace(/,/g, ""));
+    if (!cols2 && !cols3) return null;
+    if (cols2 && !cols3) return cols2;
+    if (!cols2 && cols3) return cols3;
 
-  // ---- Rate codes (robust): optional colon; ignore "(See Definitions)"
-  const rateTail =
-    (page2 + "\n" + page3).match(/Rate\s*code(?:\s*\([^\)]+\))?\s*:?\s*([^\n]+)/i)?.[1]?.trim() || "";
-  let rateCodes = [...rateTail.matchAll(/\b[A-Z0-9]{3,}\b/g)].map(m => m[0]);
-
-  // ---- Meter(s): use only the part of the line BEFORE "Rate code"
-  // This avoids accidentally treating the rate token (e.g., WSEIS) as a meter.
-  const meterLineRaw = lines.find(l => /\bMeter\b/i.test(l)) || "";
-  const meterLeft = meterLineRaw.split(/\bRate\s*code\b/i)[0] || meterLineRaw;
-  const meterTokensInGrid = meterLeft
-    .split(/\s+/)
-    .map(t => t.replace(/[^\w-]/g, ""))     // strip glyphs/colons
-    .filter(Boolean)
-    .filter(tok => /^[0-9][0-9\-]{5,}$/.test(tok)); // numeric/hyphen tokens only
-
-  // ---- kWh (robust): normalize glyphs; require "Energy use" + "kWh" on same line; pick largest number on that line
-let kwhVals: number[] = [];
-{
-  // Normalize private-use and odd spacing; collapse k•W•h -> kWh
-  const normLines = lines.map(l => l
-    .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
-    .replace(/k\W*w\W*h/gi, "kWh")
-    .replace(/[ \t]+/g, " ")
-    .trim()
-  );
-
-  // Find the exact line with both "Energy use" and "kWh"
-  const kwhIdx = normLines.findIndex(l => /Energy\s+use\b.*\bkWh\b/i.test(l));
-  if (kwhIdx >= 0) {
-    const nums = [...lines[kwhIdx].matchAll(/([0-9][\d,]*(?:\.\d+)?)/g)].map(m => num(m[1]));
-    if (nums.length) {
-      const biggest = Math.max(...nums);
-      kwhVals = [biggest];
-    }
+    // Both pages have grids: concatenate columns
+    return {
+      rateCodes: [...(cols2?.rateCodes || []), ...(cols3?.rateCodes || [])],
+      meters: [...(cols2?.meters || []), ...(cols3?.meters || [])],
+      periods: [...(cols2?.periods || []), ...(cols3?.periods || [])],
+      kwh: [...(cols2?.kwh || []), ...(cols3?.kwh || [])],
+      demandCost: [...(cols2?.demandCost || []), ...(cols3?.demandCost || [])],
+      actualDemandKw: [...(cols2?.actualDemandKw || []), ...(cols3?.actualDemandKw || [])],
+      adjustedDemandKw: [...(cols2?.adjustedDemandKw || []), ...(cols3?.adjustedDemandKw || [])],
+      summerPeakKw: [...(cols2?.summerPeakKw || []), ...(cols3?.summerPeakKw || [])],
+      ratchetKw: [...(cols2?.ratchetKw || []), ...(cols3?.ratchetKw || [])],
+      billingDemandKw: [...(cols2?.billingDemandKw || []), ...(cols3?.billingDemandKw || [])],
+      tariffMinKw: [...(cols2?.tariffMinKw || []), ...(cols3?.tariffMinKw || [])],
+      sectionTotal: [...(cols2?.sectionTotal || []), ...(cols3?.sectionTotal || [])],
+    };
   }
 
-  // Secondary: allow "Energy use" followed by a number soon after (still avoids grabbing Charges)
-  if (kwhVals.length === 0) {
-    const m = block
-      .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
-      .match(/Energy\s+use[\s\S]{0,80}?([0-9][\d,]*(?:\.\d+)?)/i);
-    if (m) kwhVals = [num(m[1])];
-  }
-
-  // Fallback: compute from Present/Previous/Multiplier
-  if (kwhVals.length === 0) {
-    const pres = block.match(/Present\s+meter\s+read[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
-    const prev = block.match(/Previous\s+meter\s+read[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
-    const mult = block.match(/Billing\s+multiplier[^\n]*?([0-9][0-9,]*(?:\.\d+)?)/i);
-    if (pres && prev) {
-      kwhVals = [Math.max(0, (num(pres[1]) - num(prev[1])) * (mult ? num(mult[1]) : 1))];
-    }
-  }
-}
-
-
-  // ---- Column count: prefer rate codes, else meters/kWh counts
-  const N = Math.max(rateCodes.length || 0, meterTokensInGrid.length || 0, kwhVals.length || 0, 1);
-  if (rateCodes.length === 0) rateCodes.push("COL1");
-  while (rateCodes.length < N) rateCodes.push(`COL${rateCodes.length + 1}`);
-  if (rateCodes.length > N) rateCodes.splice(N);
-
-  // ---- Meters: rightmost N numeric tokens; if none in-grid, try header fallback
-  let meters = meterTokensInGrid.slice(-N);
-  if (meters.length === 0) {
-    const normAll = (page1 + "\n" + page2 + "\n" + page3)
-      .replace(/[\u00A0\u2000-\u200B\uE000-\uF8FF]/g, " ")
-      .replace(/[ \t]+/g, " ");
-    const headerMeterRxs: RegExp[] = [
-      /\bMeter\s*#\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
-      /\bMeter[\s\u2000-\u200B\uE000-\uF8FF]*#?[\s\u2000-\u200B\uE000-\uF8FF]*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
-      /\bMeter\s+Number\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
-      /\bService\s+ID\s*[:\-]?\s*([A-Za-z0-9\-]{5,})\b/i,
-    ];
-    let found: string | null = null;
-    for (const rx of headerMeterRxs) {
-      const m = normAll.match(rx);
-      if (m?.[1]) { found = m[1].replace(/[^\w-]/g, ""); break; }
-    }
-    meters = Array(N).fill(found || "");
-  } else {
-    while (meters.length < N) meters.push("");
-    if (meters.length > N) meters = meters.slice(-N);
-  }
-
-  // ---- Periods: try in-grid; else banner on p1/p2
-  const perLine = lines.find(l => /\bBilling\s+period\b/i.test(l)) || "";
-  const inGridPairs = [...perLine.matchAll(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/g)];
-  const bannerPer =
-    page1.match(/\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) ||
-    page2.match(/\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
-  const periods = Array.from({ length: N }, () => ({ start: null as string | null, end: null as string | null }));
-  if (inGridPairs.length) {
-    const lastN = inGridPairs.slice(-N);
-    for (let i = 0; i < N; i++) {
-      const p = lastN[i - (N - lastN.length)] || null;
-      if (p) periods[i] = { start: p[1], end: p[2] };
-    }
-  } else if (bannerPer) {
-    for (let i = 0; i < N; i++) periods[i] = { start: bannerPer[1], end: bannerPer[2] };
-  }
-
-  // ---- kWh aligned to N
-  const kwh = Array.from({ length: N }, (_, i) => kwhVals[i] ?? null);
-
-  // ---- Demand $: from Charges line that STARTS with "Demand" (ignore any kW lines)
-  const chargesIdx = lines.findIndex(l => /^Charges\b/i.test(l));
-  const chargesLines = chargesIdx >= 0 ? lines.slice(chargesIdx) : lines;
-  const demandRow = chargesLines.find(l => /^Demand\b/i.test(l) && !/\bk\W*w\b/i.test(l));
-  const demandNums = demandRow ? [...demandRow.matchAll(/([0-9][\d,]*\.\d{2})/g)].map(m => num(m[1])) : [];
-  const demandCost = Array.from({ length: N }, () => null as number | null);
-  if (demandNums.length) demandCost[0] = demandNums[0];
-
-  hints.push(
-    `evergy: N=${N} rates=[${rateCodes.join(", ")}] meters=[${meters.join("|")}] kwh=[${kwh.map(v => v ?? "null").join("|")}]`
-  );
-
-  return { rateCodes, meters, periods, kwh, demandCost };
-}
 
 
   // Prefer WSSES; else first column with kWh; else 0
@@ -489,41 +661,109 @@ let kwhVals: number[] = [];
   let usage_kwh: number | null = null;
   let demand_cost: number | null = null;
 
-  const cols = parseMulti();
+     const cols = parseMulti();
   if (cols) {
-    const i = pickIndex(cols);
-    meter_no    = cols.meters[i] || null;
-    usage_kwh   = cols.kwh[i] ?? null;
-    demand_cost = cols.demandCost[i] ?? null;
+    // Use one column as the "primary" for summary fields,
+    // but emit an Item for *each* meter/column.
+    const primaryIdx = pickIndex(cols);
 
-    if (cols.periods[i]) {
-      period_start = cols.periods[i].start;
-      period_end   = cols.periods[i].end;
+    const primaryPeriod = cols.periods[primaryIdx];
+    if (primaryPeriod) {
+      period_start = primaryPeriod.start;
+      period_end = primaryPeriod.end;
     }
 
-    hints.push(`evergy: pick idx=${i} rate=${cols.rateCodes[i]} meter=${meter_no ?? "?"} kWh=${usage_kwh ?? "?"} demand$=${demand_cost ?? "null"}`);
+    // Summary usage/demand: sum over all columns (nulls treated as 0)
+    const sumNums = (arr: Array<number | null>) =>
+      arr.reduce((acc, v) => acc + (typeof v === "number" ? v : 0), 0);
+
+    usage_kwh = cols.kwh.some(v => v != null) ? sumNums(cols.kwh) : null;
+    demand_cost = cols.demandCost.some(v => v != null) ? sumNums(cols.demandCost) : null;
+    meter_no = cols.meters[primaryIdx] || null;
+
+    hints.push(
+      `evergy: multi-meters count=${cols.meters.length} primaryIdx=${primaryIdx} summary_kWh=${usage_kwh ?? "null"}`
+    );
+
+    for (let i = 0; i < cols.meters.length; i++) {
+      const per = cols.periods[i];
+      console.log("[evergy-parse][column]", {
+        column: i,
+        meter: cols.meters[i] || null,
+        period_start: per?.start ?? period_start ?? null,
+        period_end: per?.end ?? period_end ?? null,
+        existing: {
+          usage_kwh: cols.kwh[i] ?? null,
+          demand_cost: cols.demandCost[i] ?? null,
+          section_total_cost: cols.sectionTotal[i] ?? null,
+        },
+        new_fields: {
+          actual_demand_kw: cols.actualDemandKw[i] ?? null,
+          adjusted_demand_kw: cols.adjustedDemandKw[i] ?? null,
+          summer_peak_kw: cols.summerPeakKw[i] ?? null,
+          ratchet_kw: cols.ratchetKw[i] ?? null,
+          billing_demand_kw: cols.billingDemandKw[i] ?? null,
+          tariff_min_kw: cols.tariffMinKw[i] ?? null,
+        },
+      });
+      items.push({
+        service_address,
+        meter_no: cols.meters[i] || null,
+        period_start: per?.start ?? period_start,
+        period_end: per?.end ?? period_end,
+        usage_kwh: cols.kwh[i] ?? null,
+        section_total_cost: cols.sectionTotal[i] ?? null,
+        total_cost: null, // keep account total at Parsed.total_cost only
+        demand_cost: cols.demandCost[i] ?? null,
+        actual_demand_kw: cols.actualDemandKw[i] ?? null,
+        adjusted_demand_kw: cols.adjustedDemandKw[i] ?? null,
+        summer_peak_kw: cols.summerPeakKw[i] ?? null,
+        ratchet_kw: cols.ratchetKw[i] ?? null,
+        billing_demand_kw: cols.billingDemandKw[i] ?? null,
+        tariff_min_kw: cols.tariffMinKw[i] ?? null,
+        hints,
+      });
+    }
   }
 
   // Last-resort period from banner if still missing
   if (!period_start || !period_end) {
     const perBanner =
-      page1.match(/\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i) ||
-      page2.match(/\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
-    if (perBanner) { period_start = perBanner[1]; period_end = perBanner[2]; }
+      page1.match(
+        /\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      ) ||
+      page2.match(
+        /\bBilling\s+period\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[–—-]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      );
+    if (perBanner) {
+      period_start = perBanner[1];
+      period_end = perBanner[2];
+    }
   }
 
-  const electricItem: Item = {
-    service_address,
-    meter_no,
-    period_start,
-    period_end,
-    usage_kwh,
-    section_total_cost: null,
-    total_cost,
-    demand_cost,
-    hints,
-  };
-  items.push(electricItem);
+  // Fallback: if we still didn't push any items, create one coarse item
+  if (!items.length) {
+    const electricItem: Item = {
+      service_address,
+      meter_no,
+      period_start,
+      period_end,
+      usage_kwh,
+      section_total_cost: null,
+      total_cost,
+      demand_cost,
+      actual_demand_kw: null,
+      adjusted_demand_kw: null,
+      summer_peak_kw: null,
+      ratchet_kw: null,
+      billing_demand_kw: null,
+      tariff_min_kw: null,
+      hints,
+    };
+    items.push(electricItem);
+  }
+
+
 
   return {
     vendor: "evergy",
@@ -907,6 +1147,9 @@ function parseAuto(text: string): Parsed {
   return e;
 }
 
+const PARSER_QA_MODE = false;
+const MAX_BATCH_FILES = 20;
+
 // ---------- Supabase REST fetch helper ----------
 async function getFromSupabase(path: string) {
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}${path}`;
@@ -1119,8 +1362,12 @@ useEffect(() => {
 
   const handleFiles = useCallback(async (filesList: FileList) => {
     const files = Array.from(filesList);
-    const capped = files.slice(0, 12);
-    setBatchWarning(files.length > 12 ? `Selected ${files.length}. Processing first 12 files.` : null);
+    const capped = files.slice(0, MAX_BATCH_FILES);
+    setBatchWarning(
+      files.length > MAX_BATCH_FILES
+        ? `Selected ${files.length}. Processing first ${MAX_BATCH_FILES} files.`
+        : null
+    );
 
     setErr(null);
     setBusy(true);
@@ -1197,40 +1444,61 @@ useEffect(() => {
   }, [parsed]);
 
   const staged = useMemo(() => {
-    if (!parsed?.items?.length) return [];
-    return parsed.items.map((it, idx) => {
-      const edit = edits[idx] ?? toEditable(it);
-      const vend = (it.__vendor ?? parsed.vendor) as Parsed["vendor"];
+  if (!parsed?.items?.length) return [];
+  return parsed.items.map((it, idx) => {
+    const edit = edits[idx] ?? toEditable(it);
+    const vend = (it.__vendor ?? parsed.vendor) as Parsed["vendor"];
 
-      const meterNorm = normalizeMeter(edit.meter);
-      const byMeter = meterNorm ? meterIndex.get(meterNorm) ?? null : null;
+    const meterNorm = normalizeMeter(edit.meter);
+    const byMeter = meterNorm ? meterIndex.get(meterNorm) ?? null : null;
 
-      const addrNorm = uspsNormalizeAddress(edit.address);
-      const key = addrMatchKey(edit.address);
-      const byAddr =
-        (addrNorm && addressIndex.get(addrNorm)) || (key && addressIndex.get(key)) || null;
+    const addrNorm = uspsNormalizeAddress(edit.address);
+    const key = addrMatchKey(edit.address);
+    const byAddr =
+      (addrNorm && addressIndex.get(addrNorm)) ||
+      (key && addressIndex.get(key)) ||
+      null;
 
-      const autoMatchBuildingId = byMeter?.buildingId ?? byAddr ?? null;
-      const autoMatchVia: "meter" | "address" | "none" = byMeter
-        ? "meter"
-        : byAddr
-        ? "address"
-        : "none";
+    const autoMatchBuildingId = byMeter?.buildingId ?? byAddr ?? null;
+    const autoMatchVia: "meter" | "address" | "none" = byMeter
+      ? "meter"
+      : byAddr
+      ? "address"
+      : "none";
 
-      return {
-        idx,
-        conf: confidenceForItem(it),
-        vendor: vend,
-        sourceFile: it.__sourceFile ?? "—",
-        edit,
-        raw: it,
-        addrNorm,
-        autoMatchBuildingId,
-        autoMatchVia,
-        meterHit: byMeter,
-      };
+    return {
+      idx,
+      conf: confidenceForItem(it),
+      vendor: vend,
+      sourceFile: it.__sourceFile ?? "—",
+      edit,
+      raw: it,
+      addrNorm,
+      autoMatchBuildingId,
+      autoMatchVia,
+      meterHit: byMeter,
+    };
+  });
+}, [parsed, edits, meterIndex, addressIndex]);
+
+  useEffect(() => {
+    if (!staged.length) return;
+    setApproved((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      staged.forEach((row) => {
+        if (row.autoMatchVia === "meter" && !next[row.idx]) {
+          next[row.idx] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
     });
-  }, [parsed, edits, meterIndex, addressIndex]);
+  }, [staged]);
+
+const matchViaMeter = staged.filter((row) => row.autoMatchVia === "meter").length;
+const matchViaAddress = staged.filter((row) => row.autoMatchVia === "address").length;
+const unmatched = staged.filter((row) => row.autoMatchVia === "none").length;
 
   function setEdit(idx: number, patch: Partial<ReturnType<typeof toEditable>>) {
     setEdits((prev) => ({ ...prev, [idx]: { ...(prev[idx] ?? toEditable(parsed!.items[idx])), ...patch } }));
@@ -1239,397 +1507,642 @@ useEffect(() => {
   const approvedCount = Object.values(approved).filter(Boolean).length;
   const needsReview = (parsed?.items?.length ?? 0) - approvedCount;
 
-  async function handleIngest() {
-    if (!orgId) throw new Error("Missing orgId (no membership found)");
-    if (!parsed?.items?.length) throw new Error("Nothing to ingest yet");
+ async function handleIngest() {
+  if (PARSER_QA_MODE) {
+    console.log("[parser-qa] ingest blocked", {
+      reason: "PARSER_QA_MODE",
+      approvedCount,
+      parsedItems: parsed?.items?.length ?? 0,
+    });
+    alert("Ingest is temporarily disabled while Evergy parser QA is in progress.");
+    return;
+  }
+  if (!orgId) throw new Error("Missing orgId (no membership found)");
+  if (!parsed?.items?.length) throw new Error("Nothing to ingest yet");
 
-    const toYmd = (d: string) =>
-      /^\d{2}-\d{2}-\d{2}$/.test(d)
-        ? (() => {
-            const [mm, dd, yy] = d.split("-");
-            return `20${yy}-${mm}-${dd}`;
-          })()
-        : String(d).slice(0, 10);
+  const toYmd = (d: string) =>
+    /^\d{2}-\d{2}-\d{2}$/.test(d)
+      ? (() => {
+          const [mm, dd, yy] = d.split("-");
+          return `20${yy}-${mm}-${dd}`;
+        })()
+      : String(d).slice(0, 10);
 
-    const billKey = (meterLabel: string | null | undefined, startYmd: string, endYmd: string) =>
-      `${(meterLabel ?? "").replace(/\s+/g, "").toUpperCase()}│${startYmd}│${endYmd}`;
-    const seenKeys = new Set<string>();
+  const billKey = (
+    meterLabel: string | null | undefined,
+    startYmd: string,
+    endYmd: string
+  ) =>
+    `${(meterLabel ?? "").replace(/\s+/g, "").toUpperCase()}│${startYmd}│${endYmd}`;
+  const seenKeys = new Set<string>();
+  const skippedUnmatched: Array<{ idx: number; meter: string; address: string }> = [];
 
-    const buckets = new Map<Parsed["vendor"], any[]>();
-    Object.entries(approved)
-      .filter(([, ok]) => !!ok)
-      .map(([k]) => Number(k))
-      .forEach((idx) => {
-        const row = staged[idx];
-        const vend = row?.vendor ?? "unknown";
-        const e = edits[idx] ?? toEditable(parsed!.items[idx]);
+  const buckets = new Map<Parsed["vendor"], any[]>();
+  Object.entries(approved)
+    .filter(([, ok]) => !!ok)
+    .map(([k]) => Number(k))
+    .forEach((idx) => {
+      const row = staged[idx];
+      const vend = row?.vendor ?? "unknown";
+      const e = edits[idx] ?? toEditable(parsed!.items[idx]);
 
-        const chosenId = (manualMatch[idx] && manualMatch[idx] !== "NULL") ? manualMatch[idx] : null;
-        const autoId = row?.autoMatchBuildingId ?? null;
-        const buildingId = chosenId || autoId || null;
-
-        const startYmd = toYmd(String(e.start || ""));
-        const endYmd = toYmd(String(e.end || ""));
-        const k = billKey(e.meter, startYmd, endYmd);
-        if (seenKeys.has(k)) return;
-        seenKeys.add(k);
-
-        const payload = {
-          buildingId,
-          addressNormalized: row?.addrNorm || null,
-          service_address: e.address || null,
-          meter_no: e.meter || null,
-          match_via: row?.autoMatchVia || "none",
-          utility_provider: (e.provider || vendorToProvider(vend) || null),
-          period_start: startYmd,
-          period_end: endYmd,
-          total_cost: e.total ?? e.sectionTotal ?? null,
-          demand_cost: e.demand ?? null,
-          usage_kwh: e.kwh ?? null,
-          usage_mcf: e.mcf ?? null,
-          usage_mmbtu: e.mmbtu ?? null,
-        };
-
-        if (!buckets.has(vend)) buckets.set(vend, []);
-        buckets.get(vend)!.push(payload);
-      });
-
-    setPosting(true);
-    try {
-      for (const [vendor, items] of buckets) {
-        const utility = vendorToUtility(vendor);
-
-console.log("Ingest payload items for", vendor, items);
-
-        const res = await apiFetch("/api/ingest-bills", {
-          method: "POST",
-          body: JSON.stringify({
-            orgId,
-            utility,
-            billUploadId: null,
-            items,
-            autoCreateMeter: true,
-          }),
+      const chosenId =
+        manualMatch[idx] && manualMatch[idx] !== "NULL"
+          ? manualMatch[idx]
+          : null;
+      const autoId = row?.autoMatchBuildingId ?? null;
+      const buildingId = chosenId || autoId || null;
+      if (!buildingId) {
+        skippedUnmatched.push({
+          idx,
+          meter: String(e.meter || ""),
+          address: String(e.address || ""),
         });
-
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Ingest failed for ${vendor}: ${res.status} ${text}`);
-        }
+        return;
       }
-      alert(`Ingested ${approvedCount} item(s) across ${buckets.size} vendor group(s).`);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || String(e));
-    } finally {
-      setPosting(false);
+
+      const startYmd = toYmd(String(e.start || ""));
+      const endYmd = toYmd(String(e.end || ""));
+      const k = billKey(e.meter, startYmd, endYmd);
+      if (seenKeys.has(k)) return;
+      seenKeys.add(k);
+
+      const payload = {
+        buildingId,
+        addressNormalized: row?.addrNorm || null,
+        service_address: e.address || null,
+        meter_no: e.meter || null,
+        match_via: row?.autoMatchVia || "none",
+        utility_provider: e.provider || vendorToProvider(vend) || null,
+        period_start: startYmd,
+        period_end: endYmd,
+        total_cost: e.total ?? e.sectionTotal ?? null,
+        demand_cost: e.demand ?? null,
+        demand_charge_usd: e.demand ?? row.raw?.demand_cost ?? null,
+        actual_demand_kw: row.raw?.actual_demand_kw ?? null,
+        adjusted_demand_kw: row.raw?.adjusted_demand_kw ?? null,
+        summer_peak_kw: row.raw?.summer_peak_kw ?? null,
+        ratchet_kw: row.raw?.ratchet_kw ?? null,
+        billing_demand_kw: row.raw?.billing_demand_kw ?? null,
+        tariff_min_kw: row.raw?.tariff_min_kw ?? null,
+        usage_kwh: e.kwh ?? null,
+        usage_mcf: e.mcf ?? null,
+        usage_mmbtu: e.mmbtu ?? null,
+      };
+
+      if (!buckets.has(vend)) buckets.set(vend, []);
+      buckets.get(vend)!.push(payload);
+    });
+
+  if (!buckets.size) {
+    if (skippedUnmatched.length) {
+      const sample = skippedUnmatched
+        .slice(0, 5)
+        .map((x) => `#${x.idx} meter=${x.meter || "(none)"} address=${x.address || "(none)"}`)
+        .join("\n");
+      alert(
+        `No matched approved items to ingest.\n\n` +
+          `Skipped ${skippedUnmatched.length} approved item(s) with no building match.` +
+          (sample ? `\n\nExamples:\n${sample}` : "")
+      );
+    } else {
+      alert("No approved items to ingest.");
     }
+    return;
   }
 
+  setPosting(true);
+
+  // ✅ NEW: accumulators for summary
+  let totalInserted = 0;
+  let totalUpdated = 0;
+
+  try {
+    for (const [vendor, items] of buckets) {
+      const utility = vendorToUtility(vendor);
+
+      console.log("Ingest payload items for", vendor, items);
+
+      const res = await apiFetch("/api/ingest-bills", {
+        method: "POST",
+        body: JSON.stringify({
+          orgId,
+          utility,
+          billUploadId: null,
+          items,
+          autoCreateMeter: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Ingest failed for ${vendor}: ${res.status} ${text}`);
+      }
+
+      // ✅ NEW: parse JSON and count updated vs new using notes[]
+      let body: any = null;
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+
+      const resultArray: Array<{ notes?: string[] }> =
+        (body && (body.results || body.data)) || [];
+
+      if (Array.isArray(resultArray) && resultArray.length) {
+        for (const r of resultArray) {
+          const notes = r?.notes ?? [];
+          const wasUpdated = notes.some((n) =>
+            n.toLowerCase().includes("updated existing bill")
+          );
+          if (wasUpdated) {
+            totalUpdated++;
+          } else {
+            totalInserted++;
+          }
+        }
+      } else {
+        // Fallback: if API doesn’t return structured results, assume all were new
+        totalInserted += items.length;
+      }
+    }
+
+    // ✅ NEW: friendly summary alert
+    alert(
+      `Ingest complete:
+` +
+        `??? ${totalInserted} new bill${totalInserted === 1 ? "" : "s"}
+` +
+        `??? ${totalUpdated} updated bill${totalUpdated === 1 ? "" : "s"}` +
+        (skippedUnmatched.length
+          ? `
+??? ${skippedUnmatched.length} skipped (no building match)`
+          : "")
+    );
+  } catch (e: any) {
+    console.error(e);
+    alert(e?.message || String(e));
+  } finally {
+    setPosting(false);
+  }
+}
+
+
   /* ---------------- Render ---------------- */
-  if (loading) return <p>Loading…</p>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-sm text-slate-500">Loading…</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 20, fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ fontSize: 22, marginBottom: 12 }}>
-        OCR Test (Multi-PDF, Electric + Gas) — Review, Match & Ingest
-      </h1>
-
-      <div
-        style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}
-      >
-        <input
-          id="pdf-input"
-          type="file"
-          accept="application/pdf"
-          multiple
-          onChange={async (e) => {
-            const fl = e.target.files;
-            if (fl && fl.length > 0) {
-              await handleFiles(fl);
-            }
-          }}
-        />
-        {err && <span style={{ color: "crimson" }}>{err}</span>}
-      </div>
-
-      {fileInfos.length > 0 && (
-        <div style={{ marginBottom: 10, fontSize: 12, color: "#374151" }}>
-          <b>Files:</b> {fileInfos.map((f) => f.name).join(", ")} ({fileInfos.length})
-        </div>
-      )}
-      {batchWarning && (
-        <div
-          style={{
-            marginBottom: 10,
-            fontSize: 12,
-            color: "#92400e",
-            background: "#fff7ed",
-            border: "1px solid #fed7aa",
-            padding: 8,
-            borderRadius: 8,
-          }}
-        >
-          {batchWarning}
-        </div>
-      )}
-
-      {/* ---------- Summary ---------- */}
-      {parsed && (
-        <div style={{ display: "grid", gap: 12 } as any}>
-          <div style={{ fontSize: 13, color: "#374151" }}>
-            <b>Detected vendor:</b> {parsed.vendor} &nbsp;·&nbsp;{" "}
-            <b>Items:</b> {parsed.items.length} &nbsp;·&nbsp;{" "}
-            <b>Auto-approved:</b> {Object.values(approved).filter(Boolean).length} / {parsed.items.length}
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Header */}
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              OCR Bill Ingest
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Upload Evergy, Kansas Gas Service, or WoodRiver bills, match them
+              to buildings and meters, and ingest them straight into your
+              dashboard.
+            </p>
           </div>
-        </div>
-      )}
 
-      {/* ---------- Review Queue (Tightened) ---------- */}
-      {parsed?.items?.length ? (
-        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              onClick={() => {
-                const all: Record<number, boolean> = {};
-                parsed.items.forEach((_it, i) => (all[i] = true));
-                setApproved(all);
-              }}
-              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", background: "white" }}
-            >
-              Approve all
-            </button>
-            <button
-              onClick={() => setApproved({})}
-              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", background: "white" }}
-            >
-              Clear all
-            </button>
-            <div style={{ marginLeft: "auto", fontSize: 12, color: "#374151" }}>
-              <b>Approved:</b> {approvedCount} / {parsed.items.length}
+          {parsed && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+                {parsed.items.length} item
+                {parsed.items.length === 1 ? "" : "s"}
+              </span>
+              <span
+  className={
+    "inline-flex items-center rounded-full px-3 py-1 text-slate-700 text-xs font-medium " +
+    (approvedCount === parsed.items.length
+      ? "bg-emerald-100 text-emerald-700" // all approved → green
+      : approvedCount > 0
+      ? "bg-amber-100 text-amber-700" // some approved → amber
+      : "bg-rose-100 text-rose-700" // none approved → red
+    )
+  }
+>
+  {approvedCount} auto-approved
+</span>
+
+            </div>
+          )}
+        </header>
+
+        {/* Upload panel */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <label
+                htmlFor="pdf-input"
+                className="block text-xs font-medium text-slate-700"
+              >
+                Upload bill PDFs
+              </label>
+              <input
+                id="pdf-input"
+                type="file"
+                accept="application/pdf"
+                multiple
+                className="mt-1 block w-full text-xs text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-emerald-700 hover:file:bg-emerald-100"
+                onChange={async (e) => {
+                  const fl = e.target.files;
+                  if (fl && fl.length > 0) {
+                    await handleFiles(fl);
+                  }
+                }}
+              />
+              {busy && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Parsing PDFs… this runs in your browser, so large batches can
+                  take a moment.
+                </p>
+              )}
+            </div>
+
+            <div className="text-xs text-slate-500 sm:text-right">
+              <p>
+                Supports Evergy electric, Kansas Gas Service, and WoodRiver
+                Energy PDFs.
+              </p>
+              <p>We&apos;ll pre-match by address and meter; you can override.</p>
             </div>
           </div>
 
-          {staged.map((row) => {
-            const autoId = row.autoMatchBuildingId;
-            const autoVia = row.autoMatchVia;
-            const selected = manualMatch[row.idx] ?? null;
-            const chosenId = selected || autoId || null;
-
-            const chosenBuilding =
-              chosenId ? orgBuildings.find((b) => b.id === chosenId) ?? null : null;
-            const autoBuilding =
-              autoId ? orgBuildings.find((b) => b.id === autoId) ?? null : null;
-
-            // pill color: red if no match; else green if conf >= 7; else yellow
-            const pillSty =
-              autoVia === "none"
-                ? { bg: "#fef2f2", bd: "#fecaca", fg: "#991b1b" }
-                : row.conf >= 7
-                ? { bg: "#ecfdf5", bd: "#a7f3d0", fg: "#065f46" }
-                : { bg: "#fffbeb", bd: "#fde68a", fg: "#92400e" };
-
-            const usage =
-              row.edit.kwh ?? row.edit.mcf ?? row.edit.mmbtu ?? "—";
-            const money = row.edit.total ?? row.edit.sectionTotal ?? "—";
-	    const demand = row.edit.demand ?? row.edit.demand_cost ?? row.item?.demand_cost ?? "—";
-
-            return (
-              <div
-                key={row.idx}
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 10,
-                  padding: 12,
-                  display: "grid",
-                  gap: 8,
-                }}
-              >
-                {/* Line 1: approve + matched via + bold context */}
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    type="checkbox"
-                    checked={!!approved[row.idx]}
-                    onChange={(e) =>
-                      setApproved((prev) => ({ ...prev, [row.idx]: e.target.checked }))
-                    }
-                    title="Approve for ingest"
-                  />
-                  <span
-                    style={{
-                      fontSize: 11,
-                      background: pillSty.bg,
-                      border: `1px solid ${pillSty.bd}`,
-                      color: pillSty.fg,
-                      padding: "2px 8px",
-                      borderRadius: 999,
-                    }}
-                    title={autoVia === "none" ? "No automatic meter/address match" : `Matched via ${autoVia}`}
-                  >
-                    {autoVia === "none" ? "no match" : `matched via ${autoVia}`}
-                  </span>
-
-                  <div style={{ fontWeight: 700, fontSize: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span>{row.sourceFile}</span>
-                    <span>• {row.edit.provider || (vendorToProvider(row.vendor) ?? row.vendor.toUpperCase())}</span>
-                    {chosenBuilding ? (
-                      <span>
-                        • {buildingLabel(chosenBuilding)}
-                      </span>
-                    ) : autoBuilding ? (
-                      <span>
-                        • {buildingLabel(autoBuilding)}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: 11,
-                      background: "#f3f4f6",
-                      padding: "2px 8px",
-                      borderRadius: 999,
-                    }}
-                    title="Heuristic signal; higher is better"
-                  >
-                    conf {row.conf}
-                  </div>
-                </div>
-
-                {/* Line 2: matched fields quick glance */}
-                <div style={{ fontSize: 12, color: "#374151" }}>
-                  <b>
-                    {row.edit.start || "—"} → {row.edit.end || "—"}
-                  </b>{" "}
-                  · <b>{row.edit.meter || "no meter"}</b> · <b>{usage}</b> usage · <b>{money}</b> total · demand <b>{demand}</b>
-
-                </div>
-
-                {/* Line 3: manual building match select */}
-                <div style={{ display: "grid", gap: 6, maxWidth: 640 }}>
-                  <label style={{ fontSize: 12 }}>
-                    Manual building match
-                    <select
-                      value={manualMatch[row.idx] ?? ""}
-                      onChange={(e) =>
-                        setManualMatch((prev) => ({
-                          ...prev,
-                          [row.idx]: e.target.value || null,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 8,
-                        padding: "6px 8px",
-                        fontSize: 13,
-                        marginTop: 4,
-                      }}
-                    >
-                      <option value="">(none)</option>
-                      {orgBuildings.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {buildingLabel(b)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div style={{ fontSize: 12, color: "#374151" }}>
-                    <b>Chosen:</b>{" "}
-                    {chosenBuilding ? buildingLabel(chosenBuilding) : <i>none</i>}
-                    {!chosenBuilding && autoBuilding ? (
-                      <>
-                        {" "}
-                        (will use <b>{buildingLabel(autoBuilding)}</b> if left blank)
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* Editable fields (kept) */}
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ display: "grid", gap: 6, gridTemplateColumns: "1fr 220px 220px" }}>
-                    <label style={{ fontSize: 12 }}>
-                      Address
-                      <input
-                        value={row.edit.address}
-                        onChange={(e) => setEdit(row.idx, { address: e.target.value })}
-                        style={{
-                          width: "100%",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 8,
-                          padding: "6px 8px",
-                          fontSize: 13,
-                          marginTop: 4,
-                        }}
-                      />
-                    </label>
-
-                    <label style={{ fontSize: 12 }}>
-                      Meter
-                      <input
-                        value={row.edit.meter}
-                        onChange={(e) => setEdit(row.idx, { meter: e.target.value })}
-                        style={{
-                          width: "100%",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 8,
-                          padding: "6px 8px",
-                          fontSize: 13,
-                          marginTop: 4,
-                        }}
-                      />
-                    </label>
-
-                    <label style={{ fontSize: 12 }}>
-                      Provider
-                      <input
-                        value={row.edit.provider ?? ""}
-                        onChange={(e) => setEdit(row.idx, { provider: e.target.value })}
-                        placeholder="Evergy, Kansas Gas Service…"
-                        style={{
-                          width: "100%",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 8,
-                          padding: "6px 8px",
-                          fontSize: 13,
-                          marginTop: 4,
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {/* ---------- Ingest controls ---------- */}
-      {parsed?.items?.length ? (
-        <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            onClick={() => handleIngest()}
-            disabled={posting || !approvedCount}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: approvedCount ? "#10b981" : "#f3f3f3",
-              color: approvedCount ? "white" : "#777",
-              cursor: posting || !approvedCount ? "not-allowed" : "pointer",
-            }}
-          >
-            {posting ? "Ingesting…" : `Ingest ${approvedCount} approved`}
-          </button>
-          {needsReview > 0 && (
-            <span style={{ fontSize: 12, color: "#92400e" }}>
-              {needsReview} item(s) need review before ingest.
-            </span>
+          {err && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {err}
+            </div>
           )}
-        </div>
-      ) : null}
+
+          {fileInfos.length > 0 && (
+            <div className="mt-3 text-xs text-slate-600">
+              <span className="font-medium">Files:</span>{" "}
+              {fileInfos.map((f) => f.name).join(", ")} ({fileInfos.length})
+            </div>
+          )}
+
+          {batchWarning && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {batchWarning}
+            </div>
+          )}
+        </section>
+
+  {/* Summary + Ingest */}
+{parsed && (
+  <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 space-y-4">
+    {/* Top summary */}
+    <div className="flex flex-wrap items-center gap-4 text-sm text-slate-700">
+      <div>
+        <span className="font-semibold">Detected vendor:</span>{" "}
+        {parsed.vendor === "unknown" ? "Unknown" : parsed.vendor}
+      </div>
+
+      <div>
+        <span className="font-semibold">Items:</span>{" "}
+        {parsed.items.length}
+      </div>
+
+      <div
+        className={
+          "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium " +
+          (approvedCount === parsed.items.length
+            ? "bg-emerald-100 text-emerald-700"
+            : approvedCount > 0
+            ? "bg-amber-100 text-amber-700"
+            : "bg-rose-100 text-rose-700")
+        }
+      >
+        Auto-approved: {approvedCount} / {parsed.items.length}
+      </div>
+    </div>
+
+    {/* Match breakdown */}
+    <div className="text-sm text-slate-700 space-y-1">
+      <p>
+        <span className="font-semibold">Matched via meter:</span>{" "}
+        {matchViaMeter}
+      </p>
+      <p>
+        <span className="font-semibold">Matched via address:</span>{" "}
+        {matchViaAddress}
+      </p>
+      <p>
+        <span className="font-semibold">Unmatched:</span>{" "}
+        {unmatched}
+      </p>
+    </div>
+
+    {/* Ingest button */}
+    <div>
+      <button
+        type="button"
+        onClick={handleIngest}
+        disabled={PARSER_QA_MODE || posting || !approvedCount}
+        className="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+      >
+        {PARSER_QA_MODE
+          ? "Ingest disabled (parser QA)"
+          : posting
+          ? "Ingesting…"
+          : `Ingest ${approvedCount} approved`}
+      </button>
+
+      {needsReview > 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          {needsReview} item{needsReview === 1 ? "" : "s"} need review before ingest.
+        </p>
+      )}
+    </div>
+  </section>
+)}
+
+
+        {/* Review queue */}
+        {parsed?.items?.length ? (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Review & match bills
+              </h2>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!parsed?.items?.length) return;
+                    const all: Record<number, boolean> = {};
+                    parsed.items.forEach((_it, i) => (all[i] = true));
+                    setApproved(all);
+                  }}
+                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Approve all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApproved({})}
+                  className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Clear all
+                </button>
+                <span className="text-xs text-slate-600">
+                  <span className="font-semibold">Approved:</span>{" "}
+                  {approvedCount} / {parsed.items.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {staged.map((row) => {
+                const autoId = row.autoMatchBuildingId;
+                const autoVia = row.autoMatchVia;
+                const selected = manualMatch[row.idx] ?? null;
+                const chosenId = selected || autoId || null;
+
+                const chosenBuilding = chosenId
+                  ? orgBuildings.find((b) => b.id === chosenId) ?? null
+                  : null;
+                const autoBuilding = autoId
+                  ? orgBuildings.find((b) => b.id === autoId) ?? null
+                  : null;
+
+                const pillClasses =
+                  autoVia === "none"
+                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                    : row.conf >= 7
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200";
+
+                const usage =
+                  row.edit.kwh ?? row.edit.mcf ?? row.edit.mmbtu ?? "—";
+                const money =
+                  row.edit.total ?? row.edit.sectionTotal ?? "—";
+                const demand =
+                  row.edit.demand ??
+                  (row as any).edit?.demand_cost ??
+                  row.raw?.demand_cost ??
+                  "—";
+
+                return (
+                  <div
+                    key={row.idx}
+                    className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    {/* Line 1: approve + context */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={!!approved[row.idx]}
+                        onChange={(e) =>
+                          setApproved((prev) => ({
+                            ...prev,
+                            [row.idx]: e.target.checked,
+                          }))
+                        }
+                        title="Approve for ingest"
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                      />
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${pillClasses}`}
+                        title={
+                          autoVia === "none"
+                            ? "No automatic meter/address match"
+                            : `Matched via ${autoVia}`
+                        }
+                      >
+                        {autoVia === "none"
+                          ? "no match"
+                          : `matched via ${autoVia}`}
+                      </span>
+
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-800">
+                        <span>{row.sourceFile}</span>
+                        <span className="text-slate-400">•</span>
+                        <span>
+                          {row.edit.provider ||
+                            vendorToProvider(row.vendor) ||
+                            row.vendor.toUpperCase()}
+                        </span>
+                        {chosenBuilding ? (
+                          <>
+                            <span className="text-slate-400">•</span>
+                            <span>{buildingLabel(chosenBuilding)}</span>
+                          </>
+                        ) : autoBuilding ? (
+                          <>
+                            <span className="text-slate-400">•</span>
+                            <span>{buildingLabel(autoBuilding)}</span>
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className="ml-auto inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-700"
+                        title="Heuristic signal; higher is better"
+                      >
+                        conf {row.conf}
+                      </div>
+                    </div>
+
+                    {/* Line 2: quick glance */}
+	                    <div className="text-xs text-slate-700">
+                      <span className="font-semibold">
+                        {row.edit.start || "—"} → {row.edit.end || "—"}
+                      </span>{" "}
+                      ·{" "}
+                      <span className="font-semibold">
+                        {row.edit.meter || "no meter"}
+                      </span>{" "}
+                      ·{" "}
+                      <span className="font-semibold">{usage}</span> usage ·{" "}
+                      <span className="font-semibold">{money}</span> total ·
+                      {" "}
+                      demand{" "}
+	                      <span className="font-semibold">{demand}</span>
+	                    </div>
+
+	                    <pre className="overflow-x-auto rounded-lg bg-slate-900/95 p-2 text-[10px] leading-4 text-emerald-200">
+{`existing:
+  usage_kwh=${row.raw?.usage_kwh ?? "null"}
+  demand_cost=${row.raw?.demand_cost ?? "null"}
+  section_total_cost=${row.raw?.section_total_cost ?? "null"}
+new:
+  actual_demand_kw=${row.raw?.actual_demand_kw ?? "null"}
+  adjusted_demand_kw=${row.raw?.adjusted_demand_kw ?? "null"}
+  summer_peak_kw=${row.raw?.summer_peak_kw ?? "null"}
+  ratchet_kw=${row.raw?.ratchet_kw ?? "null"}
+  billing_demand_kw=${row.raw?.billing_demand_kw ?? "null"}
+  tariff_min_kw=${row.raw?.tariff_min_kw ?? "null"}`}
+	                    </pre>
+
+	                    {/* Line 3: manual building match */}
+                    <div className="grid max-w-3xl gap-3">
+                      <label className="text-[11px] font-medium text-slate-700">
+                        Manual building match
+                        <select
+                          value={manualMatch[row.idx] ?? ""}
+                          onChange={(e) =>
+                            setManualMatch((prev) => ({
+                              ...prev,
+                              [row.idx]: e.target.value || null,
+                            }))
+                          }
+                          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        >
+                          <option value="">(none)</option>
+                          {orgBuildings.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {buildingLabel(b)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        <span className="font-semibold">Chosen:</span>{" "}
+                        {chosenBuilding ? (
+                          buildingLabel(chosenBuilding)
+                        ) : (
+                          <i>none</i>
+                        )}
+                        {!chosenBuilding && autoBuilding ? (
+                          <>
+                            {" "}
+                            (will use{" "}
+                            <span className="font-semibold">
+                              {buildingLabel(autoBuilding)}
+                            </span>{" "}
+                            if left blank)
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+
+                    {/* Editable fields */}
+                    <div className="grid gap-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <label className="text-[11px] font-medium text-slate-700">
+                          Address
+                          <input
+                            value={row.edit.address}
+                            onChange={(e) =>
+                              setEdit(row.idx, {
+                                address: e.target.value,
+                              })
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </label>
+
+                        <label className="text-[11px] font-medium text-slate-700">
+                          Meter
+                          <input
+                            value={row.edit.meter}
+                            onChange={(e) =>
+                              setEdit(row.idx, { meter: e.target.value })
+                            }
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </label>
+
+                        <label className="text-[11px] font-medium text-slate-700">
+                          Provider
+                          <input
+                            value={row.edit.provider ?? ""}
+                            onChange={(e) =>
+                              setEdit(row.idx, {
+                                provider: e.target.value,
+                              })
+                            }
+                            placeholder="Evergy, Kansas Gas Service…"
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Ingest controls */}
+        {parsed?.items?.length ? (
+          <section className="border-t border-slate-200 bg-slate-50/80 pt-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleIngest}
+                disabled={PARSER_QA_MODE || posting || !approvedCount}
+                className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-200"
+              >
+                {PARSER_QA_MODE
+          ? "Ingest disabled (parser QA)"
+          : posting
+          ? "Ingesting…"
+          : `Ingest ${approvedCount} approved`}
+              </button>
+              {needsReview > 0 && (
+                <span className="text-xs text-amber-700">
+                  {needsReview} item
+                  {needsReview === 1 ? "" : "s"} need review before ingest.
+                </span>
+              )}
+            </div>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

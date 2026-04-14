@@ -1,0 +1,351 @@
+// src/pages/api/pm/sync-property-metrics.ts
+import type {
+	NextApiRequest,
+	NextApiResponse
+} from "next";
+import {
+	createClient
+} from "@supabase/supabase-js";
+import {
+	parseStringPromise
+} from "xml2js";
+
+// --- Supabase (service role for inserts/updates) ---
+const supabase = createClient(
+	process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+	process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
+
+// --- Portfolio Manager base URL ---
+const PM_BASE =
+	process.env.PM_BASE ?? "https://portfoliomanager.energystar.gov/wstest";
+
+// --- Basic auth header for PM ---
+function pmAuthHeader(user ? : string, pass ? : string) {
+	const u = (user ?? process.env.PM_USERNAME ?? "").trim();
+	const p = (pass ?? process.env.PM_PASSWORD ?? "").trim();
+	const token = Buffer.from(`${u}:${p}`).toString("base64");
+	return {
+		Authorization: `Basic ${token}`
+	};
+
+
+	// --- PM headers (exactly what your PowerShell used) ---
+	function makePmHeaders(user ? : string, pass ? : string) {
+		return {
+			Accept: "application/xml",
+			...pmAuthHeader(user, pass),
+			"PM-Metrics": "score,siteTotal,sourceTotal,siteIntensity,sourceIntensity,siteIntensityWN,medianSiteIntensity,percentBetterThanSiteIntensityMedian",
+		} as Record<string, string> ;
+	}
+
+	// --- Helper: coerce to number or null ---
+	function num(v: unknown): number | null {
+		if (v === undefined || v === null) return null;
+		const n = Number(String(v).trim());
+		return Number.isFinite(n) ? n : null;
+	}
+
+	// --- Helper: y-m (1..12) to YYYY-MM-01 string ---
+	function ymToDate(year: number, month: number) {
+		const mm = String(month).padStart(2, "0");
+		return `${year}-${mm}-01`;
+	}
+
+	// --- Main handler ---
+	const handler = async (req: NextApiRequest, res: NextApiResponse) => {
+		try {
+			const {
+				orgId,
+				pmUser,
+				pmPass,
+				dry
+			} = req.query as Record < string, string | undefined > ;
+			if (!orgId) {
+				return res.status(400).json({
+					ok: false,
+					error: "Missing orgId"
+				});
+			}
+
+
+			// 1) Fetch buildings for this org
+			const {
+				data: buildings,
+				error: bErr
+			} = await supabase
+				.from("buildings")
+				.select("id, pm_property_id, org_id")
+				.eq("org_id", orgId);
+
+			if (bErr) throw new Error(`buildings query failed: ${bErr.message}`);
+
+// 2) For each building
+for (const b of (buildings ?? [])) {
+  const propertyId = b.pm_property_id as string;
+  let skipThisBuilding = false;
+
+  // 2a) Get latest bills for this property/org
+  const { data: billRows, error: billsErr } = await supabase
+    .from("bills")
+    .select("period_end")
+    .eq("org_id", orgId)
+    .eq("building_id", b.id)
+    .order("period_end", { ascending: false });
+
+  if (billsErr) {
+    results.push({
+      propertyId,
+      ok: false,
+      error: `bills query error: ${billsErr.message}`,
+    });
+    continue; // skip this building
+  }
+
+  // Build candidate months (newest -> oldest)
+  let monthsDesc: Array<{ year: number; month: number }>;
+  if (!billRows?.length) {
+    const now = new Date();
+    now.setUTCDate(1);
+    now.setUTCMonth(now.getUTCMonth() - 1); // previous calendar month
+    monthsDesc = [{ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }];
+  } else {
+    const uniq = new Map<string, { year: number; month: number }>();
+    for (const r of billRows) {
+      const d = new Date(r.period_end as unknown as string);
+      const y = d.getUTCFullYear();
+      const m = d.getUTCMonth() + 1;
+      uniq.set(`${y}-${String(m).padStart(2, "0")}`, { year: y, month: m });
+    }
+    monthsDesc = Array.from(uniq.values());
+  }
+
+  // Debug: latest bill + candidate months
+  results.push({
+    propertyId,
+    debug: {
+      latestBill: billRows?.[0] ? { end: billRows[0].period_end } : null,
+      candidateMonths: monthsDesc.slice(0, 6),
+    },
+  });
+
+  // 2b) Walk months until any metric is present
+  let picked: { year: number; month: number } | null = null;
+  let textForParse: string | null = null;
+  let lastStatus = 0;
+  let lastText: string | null = null;
+  let pickedUrl: string | null = null;
+
+  for (const cand of monthsDesc) {
+    const { year, month } = cand;
+    const url = `${PM_BASE}/property/${propertyId}/metrics?year=${year}&month=${month}&measurementSystem=EPA`;
+
+    let resp: Response;
+    try {
+      const hdrs = makePmHeaders(pmUser, pmPass);
+      const hasAuthHeader =
+        !!hdrs.Authorization && hdrs.Authorization.startsWith("Basic ");
+      results.push({
+        propertyId,
+        debug: { hasAuthHeader, qYear: year, qMonth: month, urlHit: url },
+      });
+
+      resp = await fetch(url, { method: "GET", headers: hdrs });
+    } catch (e: any) {
+      results.push({
+        propertyId,
+        ok: false,
+        status: 0,
+        error: `fetch failed: ${String(e)}`,
+        url,
+      });
+      continue; // try older month
+    }
+
+    const text = await resp.text();
+    lastStatus = resp.status;
+    lastText = text;
+
+    if (!resp.ok) {
+      results.push({
+        propertyId,
+        ok: false,
+        status: resp.status,
+        error: text || "PM request failed",
+        url,
+        debug: { triedYear: year, triedMonth: month },
+      });
+      continue; // try older month
+    }
+
+    // Any non-null metric?
+    const hasAnyMetric =
+      /<metric name="score"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="siteTotal"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="sourceTotal"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="siteIntensity"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="siteIntensityWN"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="medianSiteIntensity"[^>]*>\s*<value>[^<]+<\/value>/.test(text) ||
+      /<metric name="percentBetterThanSiteIntensityMedian"[^>]*>\s*<value>[^<]+<\/value>/.test(text);
+
+    if (hasAnyMetric) {
+      picked = { year, month };
+      textForParse = text;
+      pickedUrl = url;
+      results.push({
+        propertyId,
+        debug: { pickedYear: year, pickedMonth: month, firstWithData: true },
+      });
+      break; // stop walking back
+    } else {
+      results.push({
+        propertyId,
+        debug: {
+          triedYear: year,
+          triedMonth: month,
+          firstWithData: false,
+          note: "All metrics null for this month",
+        },
+      });
+    }
+  }
+
+  // No usable month -> skip this building
+  if (!picked || !textForParse) {
+    results.push({
+      propertyId,
+      ok: false,
+      status: lastStatus,
+      error:
+        lastText || "No month with usable metrics was found in PM for this property",
+      url: null,
+    });
+    continue;
+  }
+
+  // 3) Parse XML for the picked month
+  const qYear = picked.year;
+  const qMonth = picked.month;
+  const text = textForParse;
+
+  const parsed = await parseStringPromise(text, {
+    explicitArray: false,
+    mergeAttrs: true,
+  }).catch(() => null);
+
+  if (!parsed?.propertyMetrics) {
+    results.push({
+      propertyId,
+      ok: false,
+      status: 200,
+      error: "no propertyMetrics node",
+      url: pickedUrl,
+      raw: text,
+    });
+    continue;
+  }
+
+  const pm = parsed.propertyMetrics;
+  const year = num(pm.year) ?? qYear;
+  const month = num(pm.month) ?? qMonth;
+  const as_of_date = ymToDate(year as number, month as number);
+
+  // Metric map
+  const metrics = Array.isArray(pm.metric)
+    ? pm.metric
+    : pm.metric
+    ? [pm.metric]
+    : [];
+  const m: Record<string, any> = {};
+  for (const entry of metrics) {
+    if (!entry?.name) continue;
+    m[entry.name] = entry;
+  }
+
+  // 5) Build row for upsert
+  const row: any = {
+    pm_property_id: propertyId,
+    as_of_date,
+    score: num(m.score?.value),
+    site_eui_kbtu_ft2: num(m.siteIntensity?.value),
+    source_eui_kbtu_ft2: num(m.sourceIntensity?.value),
+    site_eui_wn_kbtu_ft2: num(m.siteIntensityWN?.value),
+    median_site_eui_kbtu_ft2: num(m.medianSiteIntensity?.value),
+    percent_better_than_median_site_eui: num(
+      m.percentBetterThanSiteIntensityMedian?.value
+    ),
+    notes: {
+      requested: { year: qYear, month: qMonth },
+      effective: { year, month },
+    },
+  };
+
+  const allNull =
+    row.score == null &&
+    row.site_eui_kbtu_ft2 == null &&
+    row.source_eui_kbtu_ft2 == null &&
+    row.site_eui_wn_kbtu_ft2 == null &&
+    row.median_site_eui_kbtu_ft2 == null &&
+    row.percent_better_than_median_site_eui == null;
+
+  if (allNull) {
+    results.push({
+      propertyId,
+      ok: true,
+      skipped: "all-null",
+      url: pickedUrl,
+      debug_metric_names: Object.keys(m),
+    });
+    continue; // still inside the outer loop
+  }
+
+  // Dry run
+  if (dry === "1" || dry === "true") {
+    results.push({
+      propertyId,
+      ok: true,
+      dryRun: true,
+      url: pickedUrl,
+      row,
+      debug_metric_names: Object.keys(m),
+    });
+    continue; // still inside the outer loop
+  }
+
+  // Real write
+  const { error: upErr } = await supabase
+    .from("pm_property_scores")
+    .upsert([row]);
+
+  if (upErr) {
+    results.push({
+      propertyId,
+      ok: false,
+      error: `upsert failed: ${upErr.message}`,
+      url: pickedUrl,
+      row,
+    });
+  } else {
+    results.push({
+      propertyId,
+      ok: true,
+      wrote: true,
+      url: pickedUrl,
+      row,
+    });
+  }
+} // <-- closes the outer for-loop cleanly
+
+
+return res
+  .status(200)
+  .setHeader("Content-Type", "application/json")
+  .send(JSON.stringify({ ok: true, count: results.length, results }, null, 2));
+} catch (e: any) {
+  return res.status(500).json({
+    ok: false,
+    error: e?.message || String(e),
+  });
+}
+}
+}

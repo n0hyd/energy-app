@@ -30,7 +30,7 @@ const FIRST_BILL_ROW_SELECTOR = process.env.EVERGY_FIRST_BILL_ROW_SELECTOR || "t
 const DOWNLOAD_TRIGGER_SELECTOR =
   process.env.EVERGY_DOWNLOAD_TRIGGER_SELECTOR ||
   "a:has(img), button:has(img), a[title*='download' i], button[title*='download' i], img[alt*='download' i], a[href*='.pdf' i]";
-const TIMEOUT_MS = Number.parseInt(process.env.EVERGY_TIMEOUT_MS || "20000", 10);
+const TIMEOUT_MS = Number.parseInt(process.env.EVERGY_TIMEOUT_MS || "90000", 10);
 const SETTLE_DELAY_MS = Number.parseInt(process.env.EVERGY_SETTLE_DELAY_MS || "1500", 10);
 const DEBUG_DUMP_ON_FAILURE = (process.env.EVERGY_DEBUG_DUMP_ON_FAILURE || "1") !== "0";
 const BILLS_API_TEMPLATE_FALLBACK = "/sc-api/account/bills/{accountNumber}";

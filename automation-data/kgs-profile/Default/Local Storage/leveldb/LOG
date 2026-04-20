@@ -1,6 +1,0 @@
-2026/03/14-12:36:53.335 7c4c Reusing MANIFEST C:\Users\bjones\Projects\energy-app\automation-data\kgs-profile\Default\Local Storage\leveldb/MANIFEST-000001
-2026/03/14-12:36:53.342 7c4c Recovering log #26
-2026/03/14-12:36:53.346 7c4c Reusing old log C:\Users\bjones\Projects\energy-app\automation-data\kgs-profile\Default\Local Storage\leveldb/000026.log 
-2026/03/14-12:41:43.115 9d1c Level-0 table #30: started
-2026/03/14-12:41:43.122 9d1c Level-0 table #30: 10913 bytes OK
-2026/03/14-12:41:43.124 9d1c Delete type=0 #26

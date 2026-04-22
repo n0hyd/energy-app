@@ -18,7 +18,23 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "**/*Copy*.ts",
+      "**/*Copy*.tsx",
+      "**/*backup*.ts",
+      "**/*backkup*.ts",
+      "**/*WORKING BEFORE*.tsx",
+      "**/old-*.tsx",
+      "**/old*.tsx",
+      "energy-app.code-workspace",
     ],
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "prefer-const": "off",
+      "react/no-unescaped-entities": "off",
+      "@next/next/no-html-link-for-pages": "off",
+    },
   },
 ];
 

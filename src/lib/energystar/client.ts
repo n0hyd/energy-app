@@ -1,5 +1,4 @@
-import { ES_BASE, ES_MAX_RETRIES, ES_TIMEOUT_MS, getEsAuthHeader } from "./config";
-import { esAuthHeader } from "./config";
+import { ES_BASE, ES_MAX_RETRIES, ES_TIMEOUT_MS, esAuthHeader } from "./config";
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 

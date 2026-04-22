@@ -1,10 +1,11 @@
-// lib/pmClient.ts
-import fetch from "node-fetch";
-
 export type PmCreds = { baseUrl: string; username: string; password: string };
 
-// lib/pmClient.ts
-export async function pmRequest(creds, path, method, xmlBody?) {
+export async function pmRequest(
+  creds: PmCreds,
+  path: string,
+  method: string,
+  xmlBody?: string
+) {
   const url = `${creds.baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
   const headers: Record<string, string> = {
     Accept: "application/xml",

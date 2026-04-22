@@ -85,7 +85,23 @@ const EnergyDashboard = () => {
   const costSavings = (kBtuSavings / 3412) * 0.15;
   const schoolsNeedingImprovement = schoolScores.filter(s => s.eui > targetEUI).length;
 
-  const KPICard = ({ title, value, unit, trend, isUp, icon: Icon, subtitle }) => (
+  const KPICard = ({
+    title,
+    value,
+    unit,
+    trend,
+    isUp,
+    icon: Icon,
+    subtitle,
+  }: {
+    title: string;
+    value: React.ReactNode;
+    unit?: string;
+    trend?: number;
+    isUp?: boolean;
+    icon?: React.ComponentType<{ className?: string; size?: number }>;
+    subtitle?: string;
+  }) => (
     <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
       <div className="flex items-start justify-between">
         <div className="flex-1">

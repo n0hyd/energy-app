@@ -109,6 +109,7 @@ console.log("[ingest] hit", {
       bill_id?: string;
       createdBill?: boolean;
       createdUsage?: boolean;
+      verifyRow?: unknown;
       error?: string;
     }> = [];
 

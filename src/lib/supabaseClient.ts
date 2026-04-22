@@ -6,14 +6,14 @@ import { getPublicSupabaseEnv } from "@/lib/supabaseEnv";
 
 // Singleton
 let _sb:
-  | ReturnType<typeof createBrowserSupabaseClient /* <Database> */>
+  | ReturnType<typeof createBrowserSupabaseClient<any>>
   | null = null;
 
 export const supabase =
   _sb ??
   (() => {
     const { anonKey, url } = getPublicSupabaseEnv();
-    _sb = createBrowserSupabaseClient /* <Database> */({
+    _sb = createBrowserSupabaseClient<any>({
       supabaseKey: anonKey,
       supabaseUrl: url,
     });

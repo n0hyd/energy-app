@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { pmRequest, escapeXml } from "@/lib/pmClient";
-import { getPmCredsForOrg } from "./_getCreds";
+import { getPmCredsForOrg } from "@/lib/pmCreds";
 
 // simple helper to pull a single tag value from PM XML
 function getXmlTag(xml: string, tag: string) {
@@ -160,14 +160,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Pull all buildings for this org that might need PM properties
     const { data: buildings, error: bErr } = await supabase
       .from("buildings")
-      .select<BuildingRow>(
+      .select(
         "id, org_id, name, address, city, state, postal_code, square_feet, activity_code, year_built, pm_property_id, hours_of_operation, number_of_students, number_of_staff"
       )
       .eq("org_id", orgId);
 
 
     if (bErr) throw bErr;
-    if (!buildings || buildings.length === 0) {
+    const typedBuildings = (buildings ?? []) as BuildingRow[];
+
+    if (typedBuildings.length === 0) {
       return res.status(200).json({
         ok: true,
         message: "No buildings found for org",
@@ -191,7 +193,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       error?: string;
     }> = [];
 
-  for (const b of buildings) {
+    for (const b of typedBuildings) {
   try {
     if (b.pm_property_id) {
       // Property already exists in PM – make sure it has a property use
@@ -280,6 +282,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const schoolDistrictName =
           b.city ? `${b.city} School District` : "School District";
+        const today = new Date().toISOString().slice(0, 10);
 
         let useDetailsXml =
           `<totalGrossFloorArea units="Square Feet" currentAsOf="${today}" temporary="false">` +
@@ -325,6 +328,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `<value>${escapeXml(schoolDistrictName)}</value>` +
           `</schoolDistrict>`;
 
+        const useRoot = primaryFunctionToUseRootElement(primaryFunction);
         const useXml =
           `<?xml version="1.0" encoding="UTF-8"?>` +
           `<${useRoot}>` +

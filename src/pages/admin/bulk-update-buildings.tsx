@@ -56,12 +56,12 @@ function normalizeForDb(raw: string, type: FieldType, key: string): unknown {
   if (trimmed === "") return null;
 
   if (key === "hvac_primary") {
-    const allowed = new Set(HVAC_PRIMARY_OPTIONS.map((o) => o.value));
+    const allowed = new Set<string>(HVAC_PRIMARY_OPTIONS.map((o) => o.value));
     return allowed.has(trimmed) ? trimmed : null;
   }
 
   if (key === "hvac_distribution_type") {
-    const allowed = new Set(HVAC_DISTRIBUTION_OPTIONS.map((o) => o.value));
+    const allowed = new Set<string>(HVAC_DISTRIBUTION_OPTIONS.map((o) => o.value));
     return allowed.has(trimmed) ? trimmed : null;
   }
 

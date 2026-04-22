@@ -170,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    const rows = (buildings ?? []) as Building[];
+    const rows = ((buildings ?? []) as unknown) as Building[];
 
     // Load template
     const templatePath = path.join(process.cwd(), "public", "templates", "Add_Properties.xlsx");

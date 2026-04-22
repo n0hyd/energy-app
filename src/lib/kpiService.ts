@@ -388,8 +388,11 @@ export function computeDistrictPeakDemandKpi(input: {
       buildingName: f.buildingName,
       floorKw: getDemandThresholdKw(f),
     }))
-    .filter((f): f is { buildingId: string; buildingName?: string; floorKw: number } =>
-      isNonNegativeFiniteNumber(f.floorKw)
+    .filter(
+      (
+        f
+      ): f is { buildingId: string; buildingName: string | undefined; floorKw: number } =>
+        isNonNegativeFiniteNumber(f.floorKw)
     );
   const ratchetNote =
     floorFacts.length === 1

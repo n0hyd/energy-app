@@ -1,7 +1,7 @@
 // pages/api/pm/list-properties.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { pmRequest } from "@/lib/pmClient";
-import { getPmCredsForOrg } from "./_getCreds";
+import { getPmCredsForOrg } from "@/lib/pmCreds";
 
 /**
  * Lists all properties visible to this org's ENERGY STAR account.

@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { pmRequest, escapeXml } from "@/lib/pmClient";
-import { getPmCredsForOrg } from "./_getCreds";
+import { getPmCredsForOrg } from "@/lib/pmCreds";
 
 function getXmlTag(xml: string, tag: string) {
   const m = xml.match(new RegExp(`<${tag}>([^<]+)</${tag}>`, "i"));

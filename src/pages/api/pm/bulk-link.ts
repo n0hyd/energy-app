@@ -412,8 +412,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const results: Array<{
       buildingId: string;
       buildingName: string;
+      city?: string | null;
+      state?: string | null;
       key: string;
       pmPropertyId?: string;
+      pmPropertyName?: string | null;
       pmCandidates?: Array<{ propertyId: string; name?: string }>;
       matched: boolean;
       reason?: string;
@@ -458,6 +461,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (hits.length === 1) {
         const hit = hits[0];
+        const chosen = hit;
         const score = nameSimilarity(b.name, hit.name);
         if (score < 0.35) {
           console.log("[pm] Address match found but name looks off; keeping match but logging", {
@@ -489,6 +493,7 @@ pmPropertyName: chosen.name, // ✅ add this line
         const CLEAR_MARGIN = 0.15;
 
         if (best && best.score >= THRESH && (best.score - second) >= CLEAR_MARGIN) {
+          const chosen = best.prop;
           console.log("[pm] Name fallback disambiguated", {
             building: { id: b.id, name: b.name },
             chosen: { id: best.prop.propertyId, name: best.prop.name, score: best.score.toFixed(2) },
@@ -532,9 +537,12 @@ pmPropertyName: chosen.name, // ✅ add this line
           .map(p => ({ prop: p, score: nameSimilarity(b.name, p.name) }))
           .sort((x, y) => y.score - x.score);
 
-        const best = candidates[0];
+        const best = candidates[0]
+          ? { ...candidates[0], name: candidates[0].prop.name }
+          : undefined;
         const THRESH = 0.6;
         if (best && best.score >= THRESH) {
+          const chosen = best.prop;
           console.log("[pm] Name fallback used (no address match)", {
             building: { id: b.id, name: b.name, city: b.city, state: b.state },
             chosen: { id: best.prop.propertyId, name: best.prop.name, score: best.score.toFixed(2) },

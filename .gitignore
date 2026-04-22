@@ -23,7 +23,6 @@
 # misc
 .DS_Store
 *.pem
-*.code-workspace
 automation-data/
 scripts/automation-data/
 
@@ -35,6 +34,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel

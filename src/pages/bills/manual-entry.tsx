@@ -12,7 +12,6 @@ interface Meter { id: string; utility: "electric" | "gas" | "water"; building_id
 export default function ManualEntryPage() {
   // Gate: require session; redirect handled inside the hook
   const { loading, session } = useAuthGate(true);
-  if (loading) return <p>Loading…</p>;
   // session is guaranteed or we were redirected
 
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -60,6 +59,16 @@ export default function ManualEntryPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId, utilityChoice, utilityMeters.length]);
+
+  const isElectric = utilityChoice === "electric";
+
+  // ✅ Now it's safe to conditionally return *after* all hooks
+  if (loading) {
+    return <p>Loading…</p>;
+  }
+
+  // ...keep the rest of your component (onSubmit, return JSX) exactly as-is...
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,8 +130,7 @@ export default function ManualEntryPage() {
     }
   };
 
-  const isElectric = utilityChoice === "electric";
-
+ 
   return (
     <>
       <Head><title>New Bill</title></Head>

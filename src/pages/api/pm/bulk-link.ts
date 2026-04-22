@@ -1,10 +1,9 @@
 // src/pages/api/pm/bulk-link.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-const supabase = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string // server-side only
-);
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
+
+// Server-only service-role client. Never expose this configuration to the browser.
+const supabase = createServiceRoleClient();
 
 /** -------- Types -------- */
 type PmPropertyLite = {
@@ -295,14 +294,7 @@ async function upsertPmLink(
 
 
 function getAdminSupabase() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (!url) throw new Error("Missing SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)");
-  if (!key) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-  return createSupabaseClient(url, key, { auth: { persistSession: false } });
+  return createServiceRoleClient();
 }
 
 async function getBuildingsForOrg(orgId: string): Promise<BuildingRow[]> {

@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/pages/api/green-button/ingest.ts": {
+      "maxDuration": 300
+    }
+  }
+}

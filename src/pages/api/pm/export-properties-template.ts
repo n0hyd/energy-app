@@ -1,6 +1,6 @@
 // src/pages/api/pm/export-properties-template.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import ExcelJS from "exceljs";
 import path from "path";
 import fs from "fs";
@@ -135,10 +135,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Supabase server client (service key needed to bypass RLS for server export)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Server-only service-role client. Never expose this configuration to the browser.
+    const supabase = createServiceRoleClient();
 
     // Pull buildings for this org — NOTE: no "country" field in your schema
     const { data: buildings, error } = await supabase

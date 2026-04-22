@@ -1,6 +1,7 @@
 // src/pages/api/pm/sync-meters.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
+import { getServerSupabaseEnv } from "@/lib/supabaseAdmin";
 
 
 const PM_UNIT_BY_FUEL: Record<string, string> = {
@@ -155,8 +156,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const d = String(req.query.dry ?? "").toLowerCase();
     const dry = d === "1" || d === "true";
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    // Server-only service-role configuration. Never expose this to the browser.
+    const { serviceRoleKey: serviceKey, url: supabaseUrl } = getServerSupabaseEnv();
     if (!supabaseUrl || !serviceKey) {
       return res.status(500).json({ ok: false, error: "Supabase env vars not configured" });
     }

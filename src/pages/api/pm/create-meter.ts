@@ -1,16 +1,15 @@
 // src/pages/api/pm/create-meter.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createOptionalServiceRoleClient } from "@/lib/supabaseAdmin";
 
 /**
  * Lazy Supabase client (server-side only).
  * If SUPABASE envs aren't present, returns null and DB ops are skipped.
  */
 function getSupabase(): SupabaseClient | null {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false } });
+  // Server-only. Never expose the service-role key to client-side code.
+  return createOptionalServiceRoleClient();
 }
 
 /** Map simple units to PM's canonical strings */

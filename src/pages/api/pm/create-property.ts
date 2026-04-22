@@ -1,6 +1,6 @@
 // pages/api/pm/create-property.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { pmRequest, escapeXml } from "@/lib/pmClient";
 import { getPmCredsForOrg } from "./_getCreds";
 
@@ -24,10 +24,8 @@ function toPmPrimaryFunction(activity_code: string): string {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const buildingId = String(req.query.buildingId);
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Server-only service-role client. Never expose this configuration to the browser.
+    const supabase = createServiceRoleClient();
 
     const { data: b, error: bErr } = await supabase
       .from("buildings")

@@ -2,7 +2,7 @@
 "use client";
 
 import { createBrowserSupabaseClient } from "@supabase/auth-helpers-nextjs";
-import type { Database } from "@/lib/types"; // keep/remove if you have DB types
+import { getPublicSupabaseEnv } from "@/lib/supabaseEnv";
 
 // Singleton
 let _sb:
@@ -11,7 +11,11 @@ let _sb:
 
 export const supabase =
   _sb ??
-  (_sb = createBrowserSupabaseClient /* <Database> */({
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  }));
+  (() => {
+    const { anonKey, url } = getPublicSupabaseEnv();
+    _sb = createBrowserSupabaseClient /* <Database> */({
+      supabaseKey: anonKey,
+      supabaseUrl: url,
+    });
+    return _sb;
+  })();

@@ -1,12 +1,11 @@
 // /src/pages/api/pm/upload-usage.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { Buffer } from "buffer";
 
 function getSupabase() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
+  // Server-only service-role client. Never expose this configuration to the browser.
+  return createServiceRoleClient();
 }
 
 // --- tiny logger helpers (avoid noisy megabytes) ---

@@ -1,6 +1,6 @@
 // pages/api/pm/create-properties-for-org.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { pmRequest, escapeXml } from "@/lib/pmClient";
 import { getPmCredsForOrg } from "./_getCreds";
 
@@ -153,11 +153,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ ok: false, error: "Missing orgId" });
     }
 
-    // service-role client so we can bypass RLS inside a trusted API route
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Server-only service-role client so we can bypass RLS inside a trusted API route.
+    // Never expose this configuration to the browser.
+    const supabase = createServiceRoleClient();
 
     // Pull all buildings for this org that might need PM properties
     const { data: buildings, error: bErr } = await supabase

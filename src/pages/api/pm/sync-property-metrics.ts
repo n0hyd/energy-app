@@ -1,13 +1,10 @@
 // src/pages/api/pm/sync-property-metrics.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { parseStringPromise } from "xml2js";
 
 // --- Supabase (service role for inserts/updates) ---
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-);
+const supabase = createServiceRoleClient();
 
 // --- Portfolio Manager base URL ---
 const PM_BASE =

@@ -4,6 +4,7 @@ import * as pdfjsLib from "pdfjs-dist/build/pdf.mjs";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuthGate } from "@/hooks/useAuthGate";
 import { apiFetch } from "@/lib/apiFetch";
+import { getPublicSupabaseEnv } from "@/lib/supabaseEnv";
 
 
 /* ---------- PDF.js worker (served from /public) ---------- */
@@ -1152,10 +1153,11 @@ const MAX_BATCH_FILES = 20;
 
 // ---------- Supabase REST fetch helper ----------
 async function getFromSupabase(path: string) {
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}${path}`;
+  const { anonKey, url: supabaseUrl } = getPublicSupabaseEnv();
+  const url = `${supabaseUrl}${path}`;
   const headers = {
-    apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
     Accept: "application/json",
   };
   const res = await fetch(url, { headers });

@@ -34,14 +34,8 @@ function expandEnvRefs(value) {
 
 function ensureEnv() {
   loadEnvFile(path.resolve(".env.local"));
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = expandEnvRefs(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  }
   if (process.env.SUPABASE_URL) {
     process.env.SUPABASE_URL = expandEnvRefs(process.env.SUPABASE_URL);
-  }
-  if (!process.env.SUPABASE_URL || !/^https?:\/\//i.test(process.env.SUPABASE_URL)) {
-    process.env.SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   }
 
   const required = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "PM_USERNAME", "PM_PASSWORD"];
@@ -83,6 +77,7 @@ function parseArgs(argv) {
 }
 
 function getSupabase() {
+  // Server-only script configuration. Never reuse browser/public vars here.
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });

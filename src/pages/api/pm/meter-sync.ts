@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 import { XMLParser } from "fast-xml-parser";
 
 // Self-contained PM helpers (GET only for now), no external client import
@@ -87,14 +87,10 @@ function parsePmMetersList(xml: string) {
 /**
  * IMPORTANT: This route runs on the server only.
  * Make sure you have these env vars set (server-side):
- * - NEXT_PUBLIC_SUPABASE_URL
+ * - SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY   (server-only; never expose to browser)
  */
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-  { auth: { persistSession: false, autoRefreshToken: false } }
-);
+const supabaseAdmin = createServiceRoleClient();
 
 
 type MeterRow = {

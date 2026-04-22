@@ -1,8 +1,6 @@
 import { useRouter } from "next/router";
-import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+import { supabase } from "@/lib/supabaseClient";
 
 export default function UploadForBuilding() {
   const { query } = useRouter();

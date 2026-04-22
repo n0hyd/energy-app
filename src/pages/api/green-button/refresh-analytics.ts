@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createPagesServerClient } from "@supabase/auth-helpers-nextjs";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabaseAdmin";
 
 type Database = any;
 
@@ -46,11 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ ok: false, error: "orgId does not match current user org" });
   }
 
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
+  // Server-only service-role client. Never expose this configuration to the browser.
+  const supabaseAdmin = createServiceRoleClient();
 
   const failures: RefreshFailure[] = [];
   const warnings: RefreshFailure[] = [];
